@@ -1,0 +1,196 @@
+# =============================================================================
+# FROZEN TEST SET
+# =============================================================================
+# Frozen on 2026-08-09, BEFORE downloading the first historical series and
+# BEFORE generating the first scenario. The commit introducing this file
+# precedes every commit touching data or the generator; that ordering is the
+# evidence that no design choice was made while looking at the test set.
+#
+# WHAT THIS FILE IS
+#   Not a dataset: a deterministic recipe. Seed, mode, size, horizon and mean
+#   block length fully determine the scenario tensor, so the tensor is
+#   regenerated on demand and checked against the hash under `evaluation`.
+#   Storing the recipe rather than the arrays keeps the repository small and
+#   makes reproducibility checkable instead of merely asserted.
+#
+# USAGE
+#   Every evaluated policy: deep reinforcement learning agent, dynamic
+#   programming optimum, constant-mix 60/40, glide path, Merton CRRA, 1/N -
+#   runs on THE SAME tensor per configuration. The headline comparison is a
+#   paired difference of proportions and therefore requires identical
+#   scenarios across policies.
+# =============================================================================
+
+meta:
+  schema_version: 1
+  freeze_date: 2026-08-09
+  description: >
+    Deterministic recipe for the frozen test set: the scenarios on which the
+    final reported numbers are measured, fixed before any data existed.
+
+# --- Seed spaces ----------------------------------------------------------
+# Three disjoint spaces, one per use of randomness. Disjointness is a
+# correctness requirement, not housekeeping: a training seed colliding with
+# the test seed would mean the agent trained on the evaluation scenarios.
+#
+# SEED DERIVATION, normative:
+#   effective_seed = seeds.test_base + <configuration offset>
+#   The generator is invoked as default_rng(effective_seed). One base value
+#   plus declared offsets keeps the whole set reproducible from a single
+#   number and makes accidental seed collisions impossible.
+seeds:
+  training:   {min: 0,    max: 999}
+  validation: {min: 1000, max: 1999}
+  test_base:  20260809
+
+# --- Test set configurations ---------------------------------------------
+# One configuration produces one tensor of shape
+#   (n_scenarios, horizon_months, 4 assets)
+# shared by every policy evaluated on it.
+configurations:
+
+  A_gbm:
+    status: active
+    purpose: >
+      Validation against a known ground truth. Geometric Brownian motion is
+      unrealistic but tractable: the dynamic programming solver yields the
+      exact optimal policy here, and only here, so this is where the learned
+      policy is checked for correct implementation rather than usefulness.
+    mode: A                            # parametric: multivariate GBM
+    offset: 0                          # effective seed = test_base + offset
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: null     # no resampled blocks in a parametric mode
+    gbm_params:
+      file: config/gbm_params.yaml
+      sha256: TBD
+
+  B_L12:
+    status: active
+    purpose: >
+      Main engine. Scenarios resampled from real history, so no optimal policy
+      is computable; this is where the learned policy is compared against the
+      heuristic baselines. Base configuration of the block-length sweep.
+    mode: B                            # stationary block bootstrap
+    offset: 1
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 12       # mean of a geometric distribution,
+                                       # not a fixed block length
+
+  B_L24:
+    status: active
+    purpose: >
+      Second point of the block-length sensitivity sweep. Longer blocks retain
+      more long-horizon structure at the cost of scenario diversity; the
+      comparison must hold at both points to be reported as robust.
+    mode: B
+    offset: 2
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 24
+
+  B_L6:
+    status: contingent
+    purpose: >
+      Third point of the block-length sweep, restoring the shortest length.
+      Short blocks maximise scenario diversity but destroy the most long-run
+      dependence, so this is the lower bound of the sweep.
+    mode: B
+    offset: 3
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 6
+
+  C_regime:
+    status: contingent
+    purpose: >
+      Robustness to the mix of market conditions sampled. Blocks are drawn
+      stratified by volatility regime instead of uniformly, testing whether
+      the comparison depends on how many turbulent periods a scenario
+      contains. Lowest priority of the contingent set.
+    mode: C                            # regime-stratified block bootstrap
+    offset: 4
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 12
+    regime_spec: TBD
+
+  D_kappa_0:
+    status: contingent
+    purpose: >
+      Nesting test rather than an experiment. The mean-reversion drift with
+      kappa set to zero must reproduce mode B bit for bit under the same
+      effective seed. Passing this is the precondition for reading any other
+      mode D result: it proves the drift family contains the main generator as
+      a limiting case instead of being a rival generator.
+    mode: D                            # block bootstrap + Ornstein-Uhlenbeck drift
+    offset: 1                          # derived from B_L12, so same effective seed
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 12
+    kappa: 0.0                         # half-life = ln(2)/kappa months;
+                                       # zero means no drift at all
+
+  D_kappa_calibrated:
+    status: contingent
+    purpose: >
+      Central case of the mean-reversion bound. Block bootstrap destroys any
+      dependence beyond block length by construction, and that dependence is
+      the theoretical basis of the glide path baseline: the comparison is
+      therefore biased in the agent's favour. Here the drift intensity is
+      fitted so the synthetic variance-ratio curve reproduces the curve
+      measured on the real series. Objective function fixed in advance:
+      least squares over variance ratios at 1, 2, 3, 5, 7 and 10 years,
+      uniform weights.
+    mode: D
+    offset: 6
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 12
+    kappa: TBD
+
+  D_halflife_3y:
+    status: contingent
+    purpose: >
+      Optimistic bound of the mean-reversion sweep. Available history holds
+      only about three and a half independent ten-year windows, so the true
+      intensity cannot be estimated: the aim is to bracket it rather than
+      measure it. Strong reversion here, none in D_kappa_0. A conclusion
+      surviving both extremes is robust to what cannot be measured; a
+      conclusion that flips is itself the finding.
+    mode: D
+    offset: 7
+    n_scenarios: 20000
+    horizon_months: 120
+    mean_block_length_months: 12
+    kappa: 0.01925                     # half-life of 36 months: ln(2)/36
+
+# --- Source data ----------------------------------------------------------
+data:
+  historical_matrix: data/processed/monthly_returns.npy
+  sha256: TBD
+  window: "1990-01 / 2024-12"
+
+  # NORMATIVE COLUMN ORDER. Portfolio weights, correlation matrices, action
+  # components and figure legends are all indexed by this order. Reordering
+  # this list silently corrupts every result without raising an error.
+  assets: [us_equity, us_treasury_10y, us_treasury_2y, gold]
+
+  currency: USD                   # single currency across universe, goal,
+                                  # contributions and initial capital
+
+# --- Verification at evaluation time --------------------------------------
+# Same seed with a modified generator yields different scenarios. The hash
+# closes that gap: written the first time each test tensor is built, then
+# checked on every later run.
+# Two paths by design: exact hash inside the freezing environment, skip with a
+# warning outside it. Mode A rounding depends on the BLAS build, so an exact
+# mismatch across environments would be expected rather than a defect.
+evaluation:
+  dtype: float64
+  array_layout: C                 # row-major
+  hash_procedure: "sha256 of arr.astype('float64', order='C').tobytes()"
+  freeze_environment: {}
+  tensor_sha256: {}
+  first_generation_date: {}
