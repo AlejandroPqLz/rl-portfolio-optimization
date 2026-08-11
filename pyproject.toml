@@ -1,0 +1,35 @@
+[project]
+name = "rl-portfolio-optimization"
+version = "0.1.0"
+description = "Asignación dinámica de carteras orientada a objetivos mediante DRL"
+requires-python = "==3.12.*"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "pyyaml",
+    "gymnasium",
+    "stable-baselines3",
+    "torch",
+    "tensorboard",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
