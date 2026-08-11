@@ -1,2 +1,3 @@
 # rl-portfolio-optimization
-Deep Reinforcement Learning framework for automated asset allocation and portfolio optimization (Master's Thesis)
+
+Optimización de Carteras con Aprendizaje por Refuerzo Profundo: Asignación dinámica orientada a objetivos financieros
