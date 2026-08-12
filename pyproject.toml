@@ -1,7 +1,7 @@
 [project]
 name = "rl-portfolio-optimization"
-version = "0.1.0"
-description = "Asignación dinámica de carteras orientada a objetivos mediante DRL"
+version = "0.1.1"
+description = "Goal-based dynamic asset allocation with deep reinforcement learning"
 requires-python = "==3.12.*"
 dependencies = [
     "numpy",
@@ -15,21 +15,27 @@ dependencies = [
     "tensorboard",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest",
-    "pytest-cov",
     "ruff",
-    "mypy",
 ]
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/portfolio_manager"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+markers = ["slow: trains a network; excluded from the default run"]
+addopts = "-m 'not slow'"
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
