@@ -1,0 +1,14 @@
+{
+  "blas_backend": "accelerate",
+  "device": "cpu",
+  "gymnasium_version": "1.3.0",
+  "machine": "arm64",
+  "mps_available": true,
+  "numpy_version": "2.5.1",
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "python_implementation": "CPython",
+  "python_version": "3.12.13",
+  "stable_baselines3_version": "2.9.0",
+  "torch_num_threads": 6,
+  "torch_version": "2.13.0"
+}

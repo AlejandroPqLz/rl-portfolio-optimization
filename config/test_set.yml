@@ -184,13 +184,22 @@ data:
 # Same seed with a modified generator yields different scenarios. The hash
 # closes that gap: written the first time each test tensor is built, then
 # checked on every later run.
-# Two paths by design: exact hash inside the freezing environment, skip with a
-# warning outside it. Mode A rounding depends on the BLAS build, so an exact
-# mismatch across environments would be expected rather than a defect.
+
+# Two paths by design: exact hash comparison when the five descriptors under
+# freeze_environment all match the running environment, skip with the list of
+# differing descriptors otherwise. Mode A requires a Cholesky factorisation
+# whose last bit depends on the BLAS build so an exact mismatch across environments is expected
+# rather than a defect.
 evaluation:
   dtype: float64
   array_layout: C                 # row-major
   hash_procedure: "sha256 of arr.astype('float64', order='C').tobytes()"
-  freeze_environment: {}
+  freeze_environment: {
+    "python_version": "3.12.13",
+    "numpy_version": "2.5.1",
+    "blas_backend": "accelerate",
+    "machine": "arm64",
+    "device": "cpu"
+  }
   tensor_sha256: {}
   first_generation_date: {}
