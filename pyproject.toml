@@ -13,7 +13,7 @@ dependencies = [
     "stable-baselines3",
     "torch",
     "tensorboard",
-]
+    "openpyxl",]
 
 [dependency-groups]
 dev = [
