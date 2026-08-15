@@ -39,7 +39,7 @@ HTTP_TIMEOUT_SECONDS = 120
 CHUNK_BYTES = 64 * 1024
 DEFAULT_RAW_DIR = Path("data/raw")
 
-TimeConvention = Literal["end_of_month", "monthly_average"]
+TimeConvention = Literal["end_of_month", "monthly_average", "daily"]
 ParserKind = Literal["ff_factors_zip", "fred_csv", "worldbank_xlsx"]
 RawKind = Literal["monthly_return_pct", "annual_yield_pct", "price_usd"]
 
@@ -94,7 +94,7 @@ UST_10Y = SourceSpec(
     url="https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
     landing_url="https://fred.stlouisfed.org/series/DGS10",
     description="10-year Treasury constant maturity yield, daily, percent per annum.",
-    time_convention="end_of_month",
+    time_convention="daily",
     parser="fred_csv",
     raw_kind="annual_yield_pct",
 )
@@ -105,7 +105,7 @@ UST_2Y = SourceSpec(
     url="https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2",
     landing_url="https://fred.stlouisfed.org/series/DGS2",
     description="2-year Treasury constant maturity yield, daily, percent per annum.",
-    time_convention="end_of_month",
+    time_convention="daily",
     parser="fred_csv",
     raw_kind="annual_yield_pct",
 )
