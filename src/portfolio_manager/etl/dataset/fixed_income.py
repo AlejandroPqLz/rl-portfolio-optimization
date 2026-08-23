@@ -3,13 +3,13 @@
 The two Treasury files hold *yields*, not returns. A yield states the terms on which a new issue is placed today;
 it says nothing about what a holder of an older bond earned.
 
-Turning one into the other is what this module does. Return of month ``t``, simple and indecimal form:
+Turning one into the other is what this module does. Return of month ``t``, simple and in decimal form:
 
     r_t = y_{t-1}/12  -  D(y_{t-1})*(y_t - y_{t-1})  +  0.5*C(y_{t-1})*(y_t - y_{t-1})**2
 
 The first term is the coupon accrued over the month. The second is the price move along the slope of the price-yield
 relation. The third corrects for its curvature: the slope softens as yields rise and steepens as they fall, which
-favoursthe holder in both directions, so the correction never subtracts. Both sensitivities are evaluated at the
+favours the holder in both directions, so the correction never subtracts. Both sensitivities are evaluated at the
 start-of-period yield, because they describe the bond actually held when the month begins.
 
 Sensitivities are recomputed every month from the observed yield under a par-bond assumption. That assumption is imposed
@@ -167,7 +167,7 @@ def month_end_observations(daily_yields: pd.Series) -> pd.DataFrame:
     """Select the last available observation of each calendar month.
 
     The selection is on the last observation actually present, not on the last calendar business day:
-    a market holiday on the 31st must not open a gap. The day actually used is kept because the provenancea ppendix
+    a market holiday on the 31st must not open a gap. The day actually used is kept because the provenance appendix
     has to state it without recomputing anything.
 
     Args:
