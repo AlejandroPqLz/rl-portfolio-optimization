@@ -1,0 +1,23 @@
+# Dataset configuration file.
+# =========================
+
+# Operating window for the dataset. The start and end dates are inclusive.
+window:
+  start: "1990-01"
+  end: "2024-12"
+  expected_rows: 420
+
+# Constant maturity rates are par yields, so the coupon of the notional instrument is fixed by the provider. 
+# Par bonds are the most common type of bond, and they are the ones that are usually quoted in the market.
+duration_model: par_bond
+
+# Datasets
+equity_filename: us_equity_ff_factors.zip
+gold_filename: gold_worldbank_pinksheet.xlsx
+bonds:
+  ust10y:
+    filename: ust10y_dgs10.csv
+    maturity_years: 10
+  ust2y:
+    filename: ust2y_dgs2.csv
+    maturity_years: 2
