@@ -1,0 +1,58 @@
+{
+  "generated_at_utc": "2026-08-23T17:36:31+00:00",
+  "window": {
+    "start": "1990-01",
+    "end": "2024-12"
+  },
+  "duration_model": "par_bond",
+  "columns": [
+    "us_equity",
+    "ust10y",
+    "ust2y",
+    "gold"
+  ],
+  "n_rows": 420,
+  "sha256": "a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca",
+  "statistics": {
+    "us_equity": {
+      "n_months": 420,
+      "mean_monthly": 0.009492142857142857,
+      "std_monthly": 0.04414349037416401,
+      "std_annualised": 0.15291753630295948,
+      "geometric_mean_annual": 0.10703629500582634,
+      "autocorrelation_lag1": 0.011054854269354847,
+      "min_month": -0.17120000000000002,
+      "max_month": 0.136
+    },
+    "ust10y": {
+      "n_months": 420,
+      "mean_monthly": 0.004255833098515644,
+      "std_monthly": 0.02158178249889318,
+      "std_annualised": 0.07476148761196759,
+      "geometric_mean_annual": 0.049375956090380146,
+      "autocorrelation_lag1": 0.0993454222832529,
+      "min_month": -0.07279474192842843,
+      "max_month": 0.09619494327538723
+    },
+    "ust2y": {
+      "n_months": 420,
+      "mean_monthly": 0.002852600138424271,
+      "std_monthly": 0.005488210252725741,
+      "std_annualised": 0.019011718000682822,
+      "geometric_mean_annual": 0.03458812202017647,
+      "autocorrelation_lag1": 0.3574511146948273,
+      "min_month": -0.015130486074982082,
+      "max_month": 0.02061792888693367
+    },
+    "gold": {
+      "n_months": 420,
+      "mean_monthly": 0.005056569973376625,
+      "std_monthly": 0.03490892237514326,
+      "std_annualised": 0.12092805438245226,
+      "geometric_mean_annual": 0.05481668461537348,
+      "autocorrelation_lag1": 0.1473442935294842,
+      "min_month": -0.11703703703703705,
+      "max_month": 0.17358490566037732
+    }
+  }
+}
