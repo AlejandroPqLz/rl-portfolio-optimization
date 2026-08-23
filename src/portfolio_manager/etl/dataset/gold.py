@@ -56,6 +56,14 @@ def load_gold_returns(path: Path) -> pd.Series:
 
     # Compute simple returns ------
     prices = pd.Series(values.to_numpy(dtype=np.float64), index=pd.PeriodIndex(labels, freq="M")).dropna()
+    expected = pd.period_range(prices.index[0], prices.index[-1], freq="M")
+    if not prices.index.equals(expected):
+        missing = expected.difference(prices.index).strftime("%Y-%m").tolist()
+        raise ValueError(
+            f"{path.name}: months with no price between {prices.index[0]} and {prices.index[-1]}: {missing}. "
+            "A return computed across a gap would span more than one month."
+        )
+
     returns = prices / prices.shift(1) - 1.0
     returns.name = "gold"
     return returns.dropna().astype(np.float64)
