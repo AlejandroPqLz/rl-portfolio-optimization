@@ -16,9 +16,9 @@ What stays here is what belongs to the matrix as a whole: the configuration, the
 the window, the verifications, the recorded statistics and the digest.
 
 Command line, from the repository root:
-    uv run python -m portfolio_manager.dataset --scale-check
-    uv run python -m portfolio_manager.dataset --fixed-income-report
-    uv run python -m portfolio_manager.dataset --build
+    uv run python -m portfolio_manager.etl.dataset.consolidate --scale-check
+    uv run python -m portfolio_manager.etl.dataset.consolidate --fixed-income-report
+    uv run python -m portfolio_manager.etl.dataset.consolidate --build
 """
 
 # Imports
@@ -95,6 +95,8 @@ def load_config(path: Path = CONFIG_PATH) -> DatasetConfig:
         expected_rows=int(window.get("expected_rows", 420)),
         equity_filename=str(raw.get("equity_filename", "us_equity_ff_factors.zip")),
         gold_filename=str(raw.get("gold_filename", "gold_worldbank_pinksheet.xlsx")),
+        equity_column=str(raw.get("equity_column", "us_equity")),
+        gold_column=str(raw.get("gold_column", "gold")),
         bonds=specs,
     )
 
@@ -102,14 +104,14 @@ def load_config(path: Path = CONFIG_PATH) -> DatasetConfig:
 # ======================================================================================
 # Assembly
 # ======================================================================================
-def column_statistics(returns: pd.Series) -> dict[str, float]:
+def column_statistics(returns: pd.Series) -> dict[str, float | int]:
     """Descriptive statistics recorded for every column.
 
     Args:
         returns: Series of monthly simple returns, indexed by month.
 
     Returns:
-        Dictionary of statistics, all floats.
+        Dictionary of statistics. Every value is a float except ``n_months``, which is a count.
     """
     values = returns.to_numpy(dtype=np.float64)
     return {
@@ -141,8 +143,7 @@ def build_matrix(raw_dir: Path = RAW_DIRECTORY, config: DatasetConfig | None = N
 
     Args:
         raw_dir: Directory holding the four raw files.
-        config: Window, duration model and bond specifications. Defaults come from
-            ``config/dataset.yaml`` if present.
+        config: Window, column names and bond specifications. Defaults come from ``config/dataset.yaml`` if present.
 
     Returns:
         Frame of 420 rows by 4 columns, ``float64``, indexed by month.
@@ -176,14 +177,18 @@ def build_matrix(raw_dir: Path = RAW_DIRECTORY, config: DatasetConfig | None = N
         raise ValueError(f"columns with zero variance: {constant}. A parsing failure, not a market fact.")
     if matrix.index.has_duplicates:
         raise ValueError("duplicated months in the consolidated index")
-    steps = np.unique(np.diff(matrix.index.astype("int64")))
-    if steps.size != 1 or steps[0] != 1:
-        raise ValueError("the consolidated index is not a contiguous run of months")
     if len(matrix) != config.expected_rows:
         raise ValueError(
             f"{len(matrix)} rows between {config.window_start} and {config.window_end}, expected "
             f"{config.expected_rows}. A short count usually means a raw file does not reach the month "
             "before the window start."
+        )
+
+    expected_index = pd.period_range(config.window_start, config.window_end, freq="M")
+    if not matrix.index.equals(expected_index):
+        raise ValueError(
+            f"the consolidated index is not the contiguous run of months from {config.window_start} to "
+            f"{config.window_end}"
         )
     return matrix
 
@@ -206,7 +211,7 @@ def write_matrix(
         Metadata dictionary, which is also written to the JSON file.
     """
     matrix_path.parent.mkdir(parents=True, exist_ok=True)
-    matrix.to_csv(matrix_path, index_label="month")
+    matrix.to_csv(matrix_path, index_label="month", lineterminator="\n")
 
     metadata: dict[str, object] = {
         "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -289,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
             _print_fixed_income_report(args.raw_dir, config)
         if args.build:
             _print_build(args.raw_dir, config)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
 
