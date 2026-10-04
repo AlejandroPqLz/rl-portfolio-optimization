@@ -826,6 +826,61 @@ def build_test_set(
     return summary
 
 
+def frozen_tensor(
+    name: str, test_set: dict[str, Any] | None = None, *, matrix: np.ndarray | None = None
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Rebuild one configuration of the frozen test set and reconcile it with its recorded digest.
+
+    The recipe stores a procedure and not an array, so every consumer regenerates the tensor and
+    checks it rather than trusting a file on disk. The check is exact only inside the frozen
+    environment, for the reason given in :func:`build_test_set`; outside it the differing
+    descriptors are reported and the comparison is skipped (D39).
+
+    Args:
+        name: Configuration key under ``configurations``.
+        test_set: Parsed recipe; read from disk when omitted.
+        matrix: Historical matrix, to avoid re-reading it per configuration.
+
+    Returns:
+        Tuple ``(tensor, provenance)``, the second carrying the digest, the verdict, the effective
+        seed and the environment differences, ready to go into a side-car.
+    """
+    test_set = test_set if test_set is not None else load_test_set()
+    columns = None
+    if matrix is None:
+        columns, matrix = load_matrix()
+    spec = test_set["configurations"][name]
+    tensor, effective_seed = generate_configuration(name, test_set, matrix=matrix, columns=columns)
+
+    digest = tensor_digest(tensor)
+    evaluation = test_set["evaluation"]
+    recorded = (evaluation.get("tensor_sha256") or {}).get(name)
+    differing = compare_with_frozen(evaluation["freeze_environment"])
+    if recorded is None:
+        verdict = "unrecorded"
+    elif differing:
+        verdict = "skipped"
+    elif recorded == digest:
+        verdict = "match"
+    else:
+        raise ValueError(
+            f"{name} no longer reproduces its frozen digest inside the frozen environment: the recipe "
+            f"records {recorded} and the generator produced {digest}"
+        )
+
+    return tensor, {
+        "test_set": name,
+        "mode": spec["mode"],
+        "n_scenarios": int(spec["n_scenarios"]),
+        "horizon_months": int(spec["horizon_months"]),
+        "mean_block_length_months": spec.get("mean_block_length_months"),
+        "effective_seed": effective_seed,
+        "tensor_sha256": digest,
+        "frozen_digest_verdict": verdict,
+        "environment_differences": differing,
+    }
+
+
 # ======================================================================================
 # Stylized facts
 # ======================================================================================

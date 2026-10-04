@@ -781,6 +781,10 @@ def environment_checks(problem: ProblemConfig | None = None) -> dict[str, Any]:
     env = GoalPortfolioEnv(scenarios=scenarios[:64], problem=problem)
     check_env(env, skip_render_check=True)
     env = GoalPortfolioEnv(scenarios=scenarios[:64], problem=problem)
+    # The random actions come from the action space, whose stream is separate from the scenario
+    # one and is seeded here. Without this the bound reported below moves between runs, and a
+    # figure that goes into subsection 4.4 has to reproduce.
+    env.action_space.seed(seed)
     for _ in range(len(scenarios[:64])):
         env.reset()
         terminated = False

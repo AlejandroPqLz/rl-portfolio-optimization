@@ -603,6 +603,16 @@ def test_the_reward_stays_inside_its_bound_in_every_episode(checks):
     assert entry["max_reward"] <= 0.0
 
 
+def test_every_reported_figure_reproduces(checks):
+    """Running the checks twice must give the same numbers, not merely the same verdicts.
+
+    Subsection 4.4 quotes these figures, so any of them drifting between runs would make the text
+    unverifiable. The one that can drift is the reward bound, which comes from random actions: its
+    stream is the action space, separate from the scenario stream, and has to be seeded too.
+    """
+    assert environment_checks()["checks"] == checks["checks"]
+
+
 def test_the_hand_computed_path_is_reproduced_exactly(checks):
     """Check 5: the three-month path, including the drift of the arrival weights."""
     entry = checks["checks"]["toy_path"]

@@ -21,7 +21,7 @@
     "torch_version": "2.13.0"
   },
   "frozen_digest_verdict": "match",
-  "git_commit": "1c655eeeb98742bb96a1aa05ee9bb8072f21b62e",
+  "git_commit": "a2f957c52edf112a69f45c29f040faaa4944f07d",
   "hash_procedure": "sha256 of arr.astype('float64', order='C').tobytes()",
   "horizon_months": 120,
   "mean_block_length_months": null,
@@ -32,5 +32,5 @@
   "source_matrix": "data/returns_matrix.csv",
   "source_matrix_sha256": "a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca",
   "tensor_sha256": "9dd8165be1235dfb2e5752a3ad7581360a72084e12f51c617f9a4297065fea99",
-  "written_at_utc": "2026-10-04T17:09:11+00:00"
+  "written_at_utc": "2026-10-04T17:30:16+00:00"
 }

@@ -55,7 +55,7 @@
       "check_env": "passed",
       "episodes": 64,
       "max_reward": 0.0,
-      "min_reward": -0.03948746111098225,
+      "min_reward": -0.043012039196951346,
       "passed": true
     },
     "toy_path": {
@@ -122,7 +122,7 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
-  "git_commit": "1c655eeeb98742bb96a1aa05ee9bb8072f21b62e",
+  "git_commit": "a2f957c52edf112a69f45c29f040faaa4944f07d",
   "problem": {
     "cost_bp": 10.0,
     "goal_usd": 60000.0,
@@ -131,5 +131,5 @@
     "monthly_contribution_usd": 400.0,
     "objective": "lpm2"
   },
-  "written_at_utc": "2026-10-04T17:09:11+00:00"
+  "written_at_utc": "2026-10-04T17:30:05+00:00"
 }

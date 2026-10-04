@@ -179,6 +179,34 @@ merton_crra:
   gamma_values: [2.0, 5.0]
   calibrated: false
   rule: "w_equity = (mu - r) / (gamma * sigma^2), clipped to the simplex"
+
+  # Which column plays which part (D69). Declared here rather than assumed in
+  # baselines.py, because the choice of the riskless leg IS the decision: the
+  # two-year Treasury is the least volatile asset of the universe, and the
+  # remainder of the portfolio is invested in that same column. The one-month
+  # bill of the French file is the usual risk-free rate in the literature and is
+  # deliberately NOT used: it is not part of the universe, and deciding with one
+  # rate while investing the remainder in a different asset would make the
+  # comparator incoherent with itself.
+  #
+  # The three inputs are read from data/returns_matrix.json, the frozen matrix,
+  # and are therefore in-sample parameters, as thesis 4.2.3 states:
+  #   mu    = geometric_mean_annual of risky_asset
+  #   sigma = std_annualised        of risky_asset
+  #   r     = geometric_mean_annual of riskless_asset
+  risky_asset: us_equity
+  riskless_asset: ust2y
+
+  corner_solution_note: >
+    With the parameters of the frozen matrix the equity premium is 7.24 % and
+    the unclipped fraction is 1.55 for gamma = 2 and 0.62 for gamma = 5. The
+    first exceeds one: the Merton investor with gamma = 2 would borrow to hold
+    more equity, and the no-leverage constraint of eq:simplex leaves the
+    portfolio at the 100 % equity corner. The degeneracy is reported rather
+    than avoided (D53). Moving the range of gamma so that neither end degenerates
+    would be choosing the parameter from its consequence, which is exactly what
+    D47 exists to prevent.
+
   provenance_note: >
     PENDING. Record, for each value, one primary reference with page number.
     Do not cite second hand. Action A27, due 2026-08-25, inside T18.
