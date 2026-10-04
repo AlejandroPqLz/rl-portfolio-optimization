@@ -1,0 +1,53 @@
+{
+  "closed_form": "not implemented: transcribed from the paper by the author (D44)",
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/dp_solver.py",
+    "--browne"
+  ],
+  "configuration": "browne_4_per_month",
+  "degenerate_state_fraction": 0.8109510048943038,
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 6,
+    "torch_version": "2.13.0"
+  },
+  "git_commit": "b28041a2c5e01c7878085e6dff0041a95fef2e7d",
+  "max_wealth_reached_over_goal": 4.269390780789177,
+  "problem": {
+    "goal_usd": 60000.0,
+    "horizon_months": 120,
+    "initial_wealth_usd": 0.0,
+    "monthly_contribution_usd": 400.0
+  },
+  "result_file": "results/dp/browne_4_per_month.npz",
+  "seconds_elapsed": 2.5852970829582773,
+  "solver": {
+    "action_step": 0.05,
+    "cost_bp": 0.0,
+    "interpolation": "linear",
+    "n_actions": 101,
+    "n_quad": 5,
+    "n_quadrature_nodes": 5,
+    "n_wealth": 3201,
+    "objective": "indicator",
+    "tie_break": "min_variance",
+    "wealth_max_over_goal": 4.0
+  },
+  "status": "preliminary until the figures freeze",
+  "steps_per_month": 4,
+  "upper_bound_exceeded": true,
+  "validation": "browne",
+  "value_at_initial_state": 0.0,
+  "value_at_upper_bound": 1.0,
+  "value_flat_near_upper_bound": true,
+  "written_at_utc": "2026-10-04T20:28:43+00:00"
+}

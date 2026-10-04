@@ -20,7 +20,7 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
-  "git_commit": "6c329f23473e49c7c8702ce00dbdbda1709cabce",
+  "git_commit": "b28041a2c5e01c7878085e6dff0041a95fef2e7d",
   "policy": {
     "agreement_on_unique_optima": 0.6592679127725857,
     "agreement_within_one_step": 0.6909219357117626,
@@ -45,7 +45,7 @@
     "n_quad": 7,
     "n_wealth": 801
   },
-  "seconds_elapsed": 551.4038197910413,
+  "seconds_elapsed": 540.7918245000183,
   "upper_bound": {
     "bound": 4.0,
     "exceeded": true,
@@ -61,5 +61,5 @@
     "tolerance": 0.005,
     "tolerance_over_value": 9.682106693133091
   },
-  "written_at_utc": "2026-10-04T19:38:29+00:00"
+  "written_at_utc": "2026-10-04T20:09:27+00:00"
 }

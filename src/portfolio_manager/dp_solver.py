@@ -34,6 +34,7 @@ Command line
 ------------
     uv run python -m portfolio_manager.dp_solver --config A_gbm
     uv run python -m portfolio_manager.dp_solver --config A_gbm --stability
+    uv run python -m portfolio_manager.dp_solver --browne
 """
 
 # Imports
@@ -56,6 +57,7 @@ import yaml
 
 from portfolio_manager.baselines import dp_table_policy
 from portfolio_manager.env import (
+    OBJECTIVE_INDICATOR,
     OBJECTIVES,
     ProblemConfig,
     load_problem,
@@ -72,6 +74,7 @@ from portfolio_manager.generator import (
     git_commit,
     load_gbm_params,
     load_matrix,
+    load_matrix_metadata,
     load_test_set,
     write_sidecar,
 )
@@ -104,6 +107,11 @@ TIE_BREAKS = ("min_variance", "first")
 
 GOAL_UNITS = 1.0
 """The grid is normalised by the goal, so the goal is one and the terminal reward reads directly."""
+
+SETTLED_TOLERANCE = 1e-4
+"""Below this, successive values of a refinement sequence count as settled whether or not they
+keep shrinking. The remaining movement is floating-point noise, and calling it a divergence would
+be reading the last digits of a converged answer."""
 
 
 # ======================================================================================
@@ -796,6 +804,209 @@ def write_stability(document: dict[str, Any], directory: Path = CHECKS_DIRECTORY
 
 
 # ======================================================================================
+# The validation configuration (D44)
+# ======================================================================================
+def scale_params(params: GbmParams, steps_per_month: float) -> GbmParams:
+    """Rescale the monthly log-return parameters to a step of ``1 / steps_per_month`` months.
+
+    Log returns add over time and their covariance adds with it, so a step of ``h`` months has
+    mean ``h * mu`` and covariance ``h * Sigma``. That is what makes a sequence of step sizes a
+    refinement of one problem rather than three unrelated ones, which is how the gap between the
+    continuous-time closed form and a discrete solver is meant to be handled.
+
+    Args:
+        params: Parameters of the monthly log gross returns.
+        steps_per_month: Steps the month is divided into.
+
+    Returns:
+        Parameters of one step.
+    """
+    if steps_per_month <= 0:
+        raise ValueError(f"steps_per_month must be positive, got {steps_per_month}")
+    scale = 1.0 / float(steps_per_month)
+    return GbmParams(assets=params.assets, mu=params.mu * scale, sigma=params.sigma * scale)
+
+
+def browne_setup(
+    browne: dict[str, Any], columns: tuple[str, ...], statistics: dict[str, Any]
+) -> tuple[GbmParams, np.ndarray]:
+    """The generator override and the asset mask of the validation configuration.
+
+    One risky column keeping the mean and volatility of the frozen matrix, one riskless column
+    with zero volatility and the drift of the least volatile asset, and the rest of the universe
+    masked away so the action grid is one-dimensional.
+
+    Args:
+        browne: Parsed ``config/validation_browne.yml``.
+        columns: Normative column order.
+        statistics: The ``statistics`` block of ``returns_matrix.json``.
+
+    Returns:
+        Tuple ``(params, asset_mask)``.
+    """
+    risky, riskless = str(browne["assets"]["risky"]), str(browne["assets"]["riskless"])
+    for name in (risky, riskless):
+        if name not in columns:
+            raise ValueError(f"{name!r} is not a column of the matrix; the header is {list(columns)}")
+
+    # Annual figures to monthly log parameters. The closed form is stated on the log scale, and
+    # the generator samples log gross returns, so the conversion happens once and here.
+    annual_mean = float(statistics[risky]["geometric_mean_annual"])
+    annual_volatility = float(statistics[risky]["std_annualised"])
+    annual_rate = float(statistics[riskless]["geometric_mean_annual"])
+
+    mu = np.zeros(len(columns), dtype=np.float64)
+    sigma = np.zeros((len(columns), len(columns)), dtype=np.float64)
+    mu[columns.index(risky)] = np.log1p(annual_mean) / 12.0
+    sigma[columns.index(risky), columns.index(risky)] = annual_volatility**2 / 12.0
+    mu[columns.index(riskless)] = np.log1p(annual_rate) / 12.0
+
+    mask = np.zeros(len(columns), dtype=bool)
+    mask[[columns.index(risky), columns.index(riskless)]] = True
+    return GbmParams(assets=columns, mu=mu, sigma=sigma), mask
+
+
+def load_browne_config(path: Path | None = None) -> dict[str, Any]:
+    """Read ``config/validation_browne.yml``."""
+    path = path or config_path("validation_browne")
+    if not path.is_file():
+        raise FileNotFoundError(f"{path} not found")
+    browne = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if str(browne["objective"]) != OBJECTIVE_INDICATOR:
+        raise ValueError(
+            f"the validation configuration must use the indicator objective (D44), not "
+            f"{browne['objective']!r}: the closed form of Browne maximises the probability of "
+            "reaching the goal, and comparing it against a table of order 2 would measure the "
+            "difference between objectives rather than the error of the solver"
+        )
+    if float(browne["contribution_usd"]) != 0.0 or float(browne["cost_bp"]) != 0.0:
+        raise ValueError("the validation configuration has neither contributions nor costs")
+    return browne
+
+
+def solve_browne(
+    browne: dict[str, Any] | None = None,
+    *,
+    config: SolverConfig | None = None,
+    problem: ProblemConfig | None = None,
+    steps_per_month: int = 1,
+    progress: bool = False,
+) -> Solution:
+    """Solve the validation problem at one time step.
+
+    **This produces a table and makes no claim about it.** The closed-form value and policy of the
+    paper are transcribed by the author and compared against these tables afterwards; writing them
+    from memory would defeat the purpose of the exercise, which is to check the solver against an
+    independent source rather than against a second thing written here.
+
+    Args:
+        browne: Parsed validation configuration; read from disk when omitted.
+        config: Base discretisation, overridden by the validation one.
+        problem: Base case, used only for the goal.
+        steps_per_month: Steps the month is divided into.
+        progress: Whether to print the step being solved.
+
+    Returns:
+        The tables, on a grid of normalised wealth as usual.
+    """
+    browne = browne if browne is not None else load_browne_config()
+    config = config or load_solver_config()
+    problem = problem or load_problem()
+    columns, _ = load_matrix()
+    params, mask = browne_setup(browne, columns, load_matrix_metadata()["statistics"])
+
+    refined = SolverConfig(
+        **{
+            **config.__dict__,
+            "n_wealth": int(browne["n_wealth"]),
+            "wealth_max_over_goal": float(browne["wealth_max_over_goal"]),
+            "action_step": float(browne["action_step"]),
+            "n_quad": int(browne["n_quad"]),
+            "objective": OBJECTIVE_INDICATOR,
+        }
+    )
+    return solve(
+        refined,
+        params=scale_params(params, steps_per_month),
+        problem=problem,
+        horizon=int(browne["horizon_months"]) * int(steps_per_month),
+        asset_mask=mask,
+        objective=OBJECTIVE_INDICATOR,
+        contribution=0.0,
+        progress=progress,
+    )
+
+
+def run_browne_validation(
+    browne: dict[str, Any] | None = None,
+    *,
+    directory: Path = DP_DIRECTORY,
+    argv: list[str] | None = None,
+    progress: bool = False,
+) -> dict[str, Any]:
+    """Solve the validation problem at every declared time step and save each table.
+
+    Returns:
+        A summary with the value at the initial state for each step size, which is the sequence
+        the author compares against the closed form on transcribing it.
+    """
+    browne = browne if browne is not None else load_browne_config()
+    config, problem = load_solver_config(), load_problem()
+    initial = float(browne["initial_wealth_over_goal"])
+
+    summary: dict[str, Any] = {"initial_wealth_over_goal": initial, "levels": []}
+    for level in browne["refinement"]:
+        steps, nodes = int(level["steps_per_month"]), int(level["n_wealth"])
+        solution = solve_browne(
+            {**browne, "n_wealth": nodes},
+            config=config,
+            problem=problem,
+            steps_per_month=steps,
+            progress=progress,
+        )
+        save(
+            solution,
+            f"browne_{steps}_per_month",
+            SolverConfig(**{**config.__dict__, "n_wealth": nodes, "objective": OBJECTIVE_INDICATOR}),
+            problem,
+            directory=directory,
+            argv=argv,
+            extra={
+                "validation": "browne",
+                "steps_per_month": steps,
+                "closed_form": "not implemented: transcribed from the paper by the author (D44)",
+            },
+        )
+        summary["levels"].append(
+            {
+                "steps_per_month": steps,
+                "n_wealth": nodes,
+                "value_at_initial_state": solution.value_at(initial),
+                "seconds_elapsed": solution.seconds_elapsed,
+                "n_actions": int(solution.action_grid.shape[0]),
+                "n_quadrature_nodes": int(solution.quadrature_returns.shape[0]),
+            }
+        )
+
+    # The sequence must settle for the comparison against the closed form to mean anything, so
+    # whether it is settling is reported rather than left for the reader to work out.
+    values = [level["value_at_initial_state"] for level in summary["levels"]]
+    differences = [second - first for first, second in zip(values, values[1:], strict=False)]
+    summary["successive_differences"] = differences
+    # Settled either because the differences are shrinking, or because they have already fallen
+    # below anything that could matter. The second case is not a failure to converge: it is what a
+    # sequence looks like once it has, and a strictly-shrinking test would call the remaining
+    # floating-point noise a divergence.
+    shrinking = len(differences) >= 2 and all(
+        abs(b) < abs(a) for a, b in zip(differences, differences[1:], strict=False)
+    )
+    settled = bool(differences) and max(abs(d) for d in differences) < SETTLED_TOLERANCE
+    summary["converging"] = bool(shrinking or settled)
+    summary["settled_within_tolerance"] = settled
+    return summary
+
+
+# ======================================================================================
 # Command line
 # ======================================================================================
 def _require_parametric(name: str) -> None:
@@ -810,10 +1021,48 @@ def _require_parametric(name: str) -> None:
         )
 
 
+def _print_browne(argv: list[str], *, progress: bool = False) -> int:
+    """Build the validation tables and say plainly what has and has not been checked."""
+    browne = load_browne_config()
+    summary = run_browne_validation(browne, argv=argv, progress=progress)
+    print(
+        f"validation configuration (D44): {browne['assets']['risky']} against "
+        f"{browne['assets']['riskless']} at zero volatility,\n"
+        f"objective {browne['objective']}, no contributions, no costs, "
+        f"W_0 = {summary['initial_wealth_over_goal']:.2f} of the goal\n"
+    )
+    header = f"{'steps/month':>12} {'steps':>7} {'nodes':>7} {'actions':>8} {'V(W_0)':>11} {'diff':>11} {'seconds':>8}"
+    print(header)
+    print("-" * len(header))
+    for index, entry in enumerate(summary["levels"]):
+        difference = "" if index == 0 else f"{summary['successive_differences'][index - 1]:+11.2e}"
+        print(
+            f"{entry['steps_per_month']:>12} "
+            f"{entry['steps_per_month'] * int(browne['horizon_months']):>7} "
+            f"{entry['n_wealth']:>7} {entry['n_actions']:>8} "
+            f"{entry['value_at_initial_state']:>11.6f} {difference:>11} {entry['seconds_elapsed']:>8.1f}"
+        )
+    print(
+        f"\nthe sequence is {'settling' if summary['converging'] else 'NOT settling'}: the successive "
+        "differences must shrink for the\ncomparison against the closed form to mean anything. The wealth grid is "
+        "refined with the\ntime step because under the indicator objective the terminal value is a step function, "
+        "and\nrefining time alone accumulates interpolation error faster than it removes time error."
+    )
+    print(
+        "\nTables only. The closed-form value and policy of Browne (1999) are NOT implemented and\n"
+        "must not be written from memory: the author transcribes them from the paper, and the error\n"
+        "against them must fall as the step shrinks. Nothing above has been validated yet."
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backward induction on the wealth grid.")
-    parser.add_argument("--config", required=True, help="configuration of the frozen recipe, e.g. A_gbm")
+    parser.add_argument("--config", default="A_gbm", help="configuration of the frozen recipe, e.g. A_gbm")
     parser.add_argument("--stability", action="store_true", help="also run the two internal checks")
+    parser.add_argument(
+        "--browne", action="store_true", help="solve the validation configuration of D44 instead"
+    )
     parser.add_argument("--seed", type=int, default=None, help="unused: the induction is deterministic")
     parser.add_argument("--progress", action="store_true", help="print the month being solved")
     args = parser.parse_args(argv)
@@ -821,6 +1070,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.seed is not None:
             raise ValueError("--seed is not accepted: backward induction draws no random numbers")
+        if args.browne:
+            return _print_browne(argv if argv is not None else sys.argv, progress=args.progress)
         _require_parametric(args.config)
         config = load_solver_config()
         problem = load_problem()

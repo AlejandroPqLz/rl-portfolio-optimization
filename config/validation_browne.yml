@@ -1,0 +1,131 @@
+# =============================================================================
+# VALIDATION CONFIGURATION: THE SOLVER AGAINST A CLOSED FORM
+# =============================================================================
+# A SEPARATE configuration, not a variant of the experiment (D44). Its purpose
+# is to put the backward induction on a problem whose answer is known in closed
+# form, so that an error in the recursion surfaces as a disagreement with
+# mathematics rather than as a plausible table nobody can check.
+#
+# The internal stability checks of 4.3.6 cannot do this. An error in the
+# recursion reproduces itself at any resolution, so both of them pass on a
+# table that is wrong. They bound the discretisation error; this bounds the
+# implementation error, and the two are different claims.
+#
+# FOUR MISMATCHES BETWEEN THE PAPER AND THIS WORK, AND WHAT IS DONE ABOUT EACH
+#   1. Objective. Browne maximises the probability of reaching the goal, which
+#      is the lower partial moment of order 0. The experiment minimises the one
+#      of order 2, and the two have different optima: comparing a policy of
+#      order 2 against a table of order 0 would measure the difference between
+#      objectives and not the error of the solver. The objective is therefore
+#      set to the indicator HERE and nowhere else.
+#   2. Universe. The closed form has one risky asset and one riskless. The
+#      experiment has four. The universe is masked to two columns below.
+#   3. Leverage. The solution of the paper borrows when wealth is far from the
+#      goal and little time remains; the simplex of eq:simplex forbids it. The
+#      comparison is therefore valid only outside that region, and the boundary
+#      has to be computed from the paper's own expression before any comparison
+#      is read.
+#   4. Time. The paper is in continuous time and the solver steps monthly. The
+#      treatment is refinement rather than argument: the same problem is solved
+#      at a month, half a month and a quarter, with the generator parameters
+#      rescaled, and the error against the closed form must fall as the step
+#      does. A single step size proves nothing.
+#
+# WHAT IS DELIBERATELY ABSENT
+#   The closed-form value and policy of Browne (1999) are NOT in this
+#   repository and must not be written from memory. They are transcribed from
+#   the paper by the author, with the equation numbers recorded, and only then
+#   compared against the tables this configuration produces. Everything here
+#   builds the tables; nothing here claims they are right.
+# =============================================================================
+
+meta:
+  schema_version: 1
+  written_on: 2026-10-04
+  status: >
+    Tables only. The closed-form reference is transcribed from the paper by the
+    author and is not part of this file or of the code that reads it.
+  reference:
+    author: "Browne, S."
+    year: 1999
+    title: "Reaching goals by a deadline: digital options and continuous-time active portfolio management"
+    pending_transcription:
+      - "closed-form value function"
+      - "closed-form optimal amount in the risky asset"
+      - "boundary of the region where that amount exceeds wealth (no-leverage region)"
+
+# --- The universe ------------------------------------------------------------
+# Two columns of the four. The remaining two are masked out, so the action grid
+# is one-dimensional: the weight in equity, and the rest riskless.
+#
+# The memoir states the same configuration as four assets of which three are
+# riskless and indistinguishable, with the comparison made on their aggregate.
+# The two are the same problem. Masking is preferred here because it makes the
+# action grid one-dimensional directly, instead of leaving the solver to split
+# an aggregate arbitrarily between three identical columns and relying on the
+# reader to re-aggregate.
+assets:
+  risky: us_equity
+  riskless: ust2y
+  # mu and sigma of the risky column are the annual geometric mean and the
+  # annualised volatility of the frozen matrix, the same two figures the Merton
+  # comparator uses (D69). The riskless drift r is the annual geometric mean of
+  # the riskless column. All three are read from data/returns_matrix.json, so
+  # this file names the columns and never the numbers.
+  source: data/returns_matrix.json
+
+# --- The problem -------------------------------------------------------------
+# Browne's investor has a goal and a deadline and no income: there are no
+# contributions, and the initial wealth is a fraction of the goal rather than
+# zero, since with zero wealth and no contributions the problem is trivial.
+objective: indicator
+contribution_usd: 0
+cost_bp: 0
+initial_wealth_over_goal: 0.5
+horizon_months: 120
+
+# --- The discretisation ------------------------------------------------------
+# Finer on both axes than the experimental grid, which costs little once the
+# action set is one-dimensional: 101 portfolios instead of 1771, and one
+# non-degenerate factor instead of four, so 5 quadrature nodes instead of 625.
+n_wealth: 801
+wealth_max_over_goal: 4.0
+action_step: 0.01
+n_quad: 5
+
+# --- Refinement --------------------------------------------------------------
+# At k steps per month the horizon becomes 120k steps and the log-return
+# parameters of one step are the monthly ones divided by k, which is what makes
+# the sequence a refinement of one problem rather than several different ones.
+#
+# THE WEALTH GRID IS REFINED WITH IT, AND MUST BE. The memoir asks for steps of
+# a month, half a month and a quarter, and requires the error to fall as the
+# step does; it does not say what happens to the wealth grid, and holding it
+# fixed makes that requirement unsatisfiable. Measured on this configuration,
+# refining time alone moves the value the WRONG way and by growing amounts:
+#
+#     k = 1, 2, 4, 8, 16 at 801 nodes:  0.868662  0.867709  0.866587
+#                                       0.865265  0.861366
+#     successive differences:           -9.5e-04  -1.1e-03  -1.3e-03  -3.9e-03
+#
+# The cause is the objective. Under the indicator the terminal value is a step
+# function of wealth, discontinuous at the goal, and linear interpolation
+# smears that jump across one grid cell. Halving the time step doubles the
+# number of interpolations without touching the size of the smear, so the error
+# accumulates faster than the time discretisation improves. The experimental
+# configuration does not have this problem, because the squared shortfall is
+# continuous.
+#
+# Doubling the nodes with each halving of the step converges as it should:
+#
+#     (k, nodes) = (1, 801) (2, 1601) (4, 3201) (8, 6401):
+#                  0.868662  0.874526  0.878469  0.881045
+#     successive differences:  +5.9e-03  +3.9e-03  +2.6e-03
+#
+# monotone, shrinking, and consistent with first-order convergence. The fourth
+# level costs ten seconds, so the sequence is cheap to extend if the comparison
+# against the closed form asks for it.
+refinement:
+  - {steps_per_month: 1, n_wealth: 801}
+  - {steps_per_month: 2, n_wealth: 1601}
+  - {steps_per_month: 4, n_wealth: 3201}

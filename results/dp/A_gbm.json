@@ -21,7 +21,7 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
-  "git_commit": "6c329f23473e49c7c8702ce00dbdbda1709cabce",
+  "git_commit": "b28041a2c5e01c7878085e6dff0041a95fef2e7d",
   "max_wealth_reached_over_goal": 4.586565375083282,
   "problem": {
     "goal_usd": 60000.0,
@@ -30,7 +30,7 @@
     "monthly_contribution_usd": 400.0
   },
   "result_file": "results/dp/A_gbm.npz",
-  "seconds_elapsed": 64.1581027500215,
+  "seconds_elapsed": 63.05020850000437,
   "solver": {
     "action_step": 0.05,
     "cost_bp": 0.0,
@@ -48,5 +48,5 @@
   "value_at_initial_state": -0.0005164165360361279,
   "value_at_upper_bound": -1.474592344018227e-261,
   "value_flat_near_upper_bound": true,
-  "written_at_utc": "2026-10-04T19:30:21+00:00"
+  "written_at_utc": "2026-10-04T20:01:29+00:00"
 }
