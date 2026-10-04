@@ -149,7 +149,7 @@ def tensor_digest(tensor: np.ndarray) -> str:
     return hashlib.sha256(tensor.astype("float64", order="C").tobytes()).hexdigest()
 
 
-def _git_commit() -> str | None:
+def git_commit() -> str | None:
     """Current commit hash, or ``None`` outside a repository. Never raises."""
     try:
         result = subprocess.run(
@@ -177,7 +177,7 @@ def write_sidecar(result_path: Path, payload: dict[str, Any], argv: list[str] | 
         "result_file": str(result_path),
         "command_line": argv if argv is not None else sys.argv,
         "written_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "git_commit": _git_commit(),
+        "git_commit": git_commit(),
         "environment_fingerprint": collect_fingerprint(),
         **payload,
     }
@@ -496,10 +496,52 @@ def generate(
     Returns:
         ``(n_scenarios, horizon, N)`` array of simple monthly returns in ``float64``.
     """
+    return generate_from_rng(
+        np.random.default_rng(seed),
+        mode,
+        n_scenarios,
+        horizon,
+        block_length=block_length,
+        params=params,
+        matrix=matrix,
+        columns=columns,
+    )
+
+
+def generate_from_rng(
+    rng: np.random.Generator,
+    mode: str,
+    n_scenarios: int,
+    horizon: int,
+    *,
+    block_length: float | None = None,
+    params: GbmParams | None = None,
+    matrix: np.ndarray | None = None,
+    columns: tuple[str, ...] | None = None,
+) -> np.ndarray:
+    """Same as :func:`generate`, drawing from a stream the caller owns and keeps.
+
+    :func:`generate` is the entry point for a tensor built once from a declared seed, which is what
+    the frozen test set needs. Training is the other case: a sub-environment produces a new scenario
+    at every ``reset`` and must advance a single stream across the whole run rather than reseed per
+    episode, because reseeding would make the episodes a function of a derived seed sequence instead
+    of one declared seed (thesis 4.3.4).
+
+    Args:
+        rng: The stream to draw from, advanced in place.
+        mode: ``"A"`` or ``"B"``.
+        n_scenarios: Number of independent scenarios.
+        horizon: Months per scenario.
+        block_length: Mean block length ``L``, required by mode B and rejected by mode A.
+        params: Parameters for mode A; read from ``config/gbm_params.yml`` when omitted.
+        matrix: Historical matrix for mode B; read from disk when omitted.
+        columns: Column names matching ``matrix``; read from disk when omitted.
+
+    Returns:
+        ``(n_scenarios, horizon, N)`` array of simple monthly returns in ``float64``.
+    """
     if n_scenarios <= 0 or horizon <= 0:
         raise ValueError(f"n_scenarios and horizon must be positive, got {n_scenarios} and {horizon}")
-
-    rng = np.random.default_rng(seed)
 
     if mode == MODE_PARAMETRIC:
         if block_length is not None:
@@ -1034,7 +1076,7 @@ def write_stylized_facts(document: dict[str, Any], directory: Path = CHECKS_DIRE
         **document,
         "command_line": sys.argv,
         "written_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "git_commit": _git_commit(),
+        "git_commit": git_commit(),
         "environment_fingerprint": collect_fingerprint(),
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

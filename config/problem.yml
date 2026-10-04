@@ -1,0 +1,77 @@
+# =============================================================================
+# BASE CASE OF THE DECISION PROBLEM
+# =============================================================================
+# The parameters that define WHAT is being solved, as opposed to how. They are
+# read by `env.py`, by `baselines.py` (which needs the horizon), by
+# `evaluate.py` and by `dp_solver.py`, so that the four modules cannot disagree
+# about the problem they address.
+#
+# WHY THIS FILE EXISTS
+#   The comparison of the three hypotheses is paired: the agent, the dynamic
+#   programming table and the five comparator portfolios must face the same
+#   goal, the same horizon, the same contribution and the same cost. A literal
+#   written into any one of the four modules would be a second definition of
+#   the problem, and the first divergence between them would surface as a
+#   result rather than as an error.
+#
+#   Thesis subsection 4.3.1 states the rule: no figure describing the problem,
+#   the generator, the comparators or the agent lives in code. The module table
+#   of that subsection still names `dataset.yml` in the `env` row; that cell
+#   becomes `problem.yml`.
+#
+# SCALE INVARIANCE
+#   Dividing the transition of Equation eq:transicion by the goal shows that
+#   the dynamics of W_t/G depend only on c/G and W_0/G. Multiplying goal,
+#   contribution and initial wealth by one constant therefore leaves the state
+#   and the optimal policy unchanged: the policy learned for a goal of 60,000
+#   USD serves one of 600,000. The figures below fix a representative case,
+#   not a restriction of the method.
+# =============================================================================
+
+meta:
+  schema_version: 1
+  written_on: 2026-10-04
+  description: >
+    Base case of thesis subsection 4.2.1: an investor starting from nothing,
+    contributing monthly, with a dated capital goal ten years away.
+
+# --- The investor ---------------------------------------------------------
+# Contributions accumulate 400 * 120 = 48,000 USD, so 12,000 USD must come from
+# the return of the portfolio. A constant 4.4 % per year would reach the goal
+# exactly. The least volatile asset of the universe, the two-year Treasury,
+# returned 3.46 % per year over the window, so the goal is not reached by a
+# fully conservative allocation; nor does it demand a level of risk that could
+# not be defended. The case sits deliberately between those two, which is where
+# a dynamic allocation can matter at all.
+goal_usd: 60000                   # G, nominal, not indexed to the price level
+horizon_months: 120               # T, a configuration parameter and not a state variable
+monthly_contribution_usd: 400     # c, paid at the close of each month
+initial_wealth_usd: 0             # W_0
+
+# --- The friction ---------------------------------------------------------
+# lambda, in basis points per unit of turnover. Turnover sums purchases and
+# sales, so moving 1 % of the portfolio from one asset to another is a turnover
+# of 2 % and costs 0.002 % of wealth. Declared as a conservative upper bound on
+# retail execution cost rather than as a cited point estimate (D24, amended by
+# D46); the value lives here and in `baselines.yml:transaction_cost.lambda`,
+# which must agree.
+#
+# What makes the strategies comparable is not the figure but its application:
+# the same lambda is charged to the agent and to all five comparator portfolios
+# over the same scenarios, so no value of it can favour one strategy.
+cost_bp: 10
+cost_sweep_bp: [0, 10, 25]        # robustness sweep, executed 11-13 October
+
+# --- The objective --------------------------------------------------------
+# `lpm2`  : r_T = -(max(0, 1 - W_T/G))^2, the lower partial moment of order 2
+#           of Equation eq:recompensa. Already in goal units and therefore
+#           bounded in [-1, 0] by construction; there is no separate scale
+#           parameter (D74).
+# `indicator`: r_T = 1{W_T >= G}, the order-0 objective. NOT the objective of
+#           the experiment. It exists because the closed-form solution of
+#           Browne (1999) maximises the probability of success, so validating
+#           the solver against it requires running the solver under the
+#           objective of that paper (D44). Comparing a policy of order 2
+#           against a table of order 0 would measure the difference between
+#           objectives and not the error of the agent.
+objective: lpm2
