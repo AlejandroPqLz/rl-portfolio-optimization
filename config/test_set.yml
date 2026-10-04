@@ -62,8 +62,8 @@ configurations:
     horizon_months: 120
     mean_block_length_months: null     # no resampled blocks in a parametric mode
     gbm_params:
-      file: config/gbm_params.yaml
-      sha256: TBD
+      file: config/gbm_params.yml
+      sha256: 0ff2677c5259f1f50cf9ed28be0719bb44568fe20d80ac5c5bd0c9e44cdbcc2d
 
   B_L12:
     status: active
@@ -168,14 +168,14 @@ configurations:
 
 # --- Source data ----------------------------------------------------------
 data:
-  historical_matrix: data/processed/monthly_returns.npy
-  sha256: TBD
+  historical_matrix: data/returns_matrix.csv
+  sha256: a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca
   window: "1990-01 / 2024-12"
 
   # NORMATIVE COLUMN ORDER. Portfolio weights, correlation matrices, action
   # components and figure legends are all indexed by this order. Reordering
   # this list silently corrupts every result without raising an error.
-  assets: [us_equity, us_treasury_10y, us_treasury_2y, gold]
+  assets: [us_equity, ust10y, ust2y, gold]
 
   currency: USD                   # single currency across universe, goal,
                                   # contributions and initial capital
@@ -201,5 +201,11 @@ evaluation:
     "machine": "arm64",
     "device": "cpu"
   }
-  tensor_sha256: {}
-  first_generation_date: {}
+  tensor_sha256:
+    A_gbm: "9dd8165be1235dfb2e5752a3ad7581360a72084e12f51c617f9a4297065fea99"
+    B_L12: "aba55a058906a37b81716834119f73f7f8008b84d2c8460e2ea6c1ab16e5838b"
+    B_L24: "7aaee8856894f46ab5579e755ba42f4a7d46ee78400858a57b558324bd1f7267"
+  first_generation_date:
+    A_gbm: "2026-10-04"
+    B_L12: "2026-10-04"
+    B_L24: "2026-10-04"

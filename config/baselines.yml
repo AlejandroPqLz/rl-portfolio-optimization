@@ -1,0 +1,226 @@
+# Baseline configuration file.
+# =============================================================================
+# Externally sourced parameters. NONE of these is calibrated by the author.
+# Closes action A17. See D24 (lambda), D45 (glide path), D46 (lambda
+# amendment), D47 (gamma range).
+#
+# WHY THIS FILE EXISTS
+#   H2 compares the agent against rivals that carry free parameters. Setting
+#   those parameters by judgement would mean choosing how strong the opponent
+#   is, and any measured advantage would be an artefact of that choice rather
+#   than a finding. Grouping the three parameters here makes the claim
+#   checkable in one place: nothing below was tuned against a result.
+#   Fifth tribunal objection, closed by this file.
+#
+# RULE: no value here may be changed after inspecting experimental results.
+
+horizon_months: 120
+
+# -----------------------------------------------------------------------------
+# Glide path
+# -----------------------------------------------------------------------------
+# Temporal shape taken from an external, documented lifecycle fund series. The
+# two endpoints are read from two funds of the SAME series, measured on the
+# SAME date, whose target dates are exactly ten years apart. No interpolation
+# between anchor ages is involved.
+glide_path:
+  equity_weight_start: 0.669      # ten years before the target date
+  equity_weight_end: 0.488        # at the target date
+  shape: linear                   # declared by the provider for this series
+  accessed: "2026-08-24"
+
+  sources:
+    start:
+      fund: "Vanguard Target Retirement 2035 Fund, Investor Shares (VTTHX)"
+      document: "Summary Prospectus, Form 497K, filed 2026-01-28 (SP 305 012026)"
+      url: "https://www.sec.gov/Archives/edgar/data/752177/000119312526025004/f43870d1.htm"
+      as_of: "2025-09-30"
+      location: "Annual Total Returns, composite index portion allocations"
+      quoted: >
+        custom blended index developed by Vanguard based on the Fund's asset
+        allocation glide schedule, which becomes more conservative as time
+        elapses
+      composite_allocation:
+        crsp_us_total_market: 0.4013
+        ftse_global_all_cap_ex_us: 0.2675
+        bloomberg_us_aggregate_float_adjusted: 0.2319
+        bloomberg_global_aggregate_ex_usd_hedged: 0.0994
+      equity_raw: 0.6688
+      fixed_income_raw: 0.3313
+      normalisation_note: >
+        Reported figures sum to 1.0001 owing to provider rounding.
+        Renormalised: 0.6688 / 1.0001 = 0.669.
+      cross_check_actual_holdings:
+        note: >
+          The same document reports the fund's REALISED allocation on the same
+          date: 41.0% US stocks, 27.6% foreign stocks, 21.8% US fixed income,
+          9.0% foreign fixed income, i.e. 0.690 equity once renormalised. That
+          figure is the drifted portfolio, not the schedule, and is recorded
+          here only as a consistency check. The two readings differ by about
+          two percentage points in level and by 0.01 percentage points per year
+          in slope.
+    end:
+      fund: "Vanguard Target Retirement 2025 Fund, Investor Shares (VTTVX)"
+      document: "Summary Prospectus, Form 497K, filed 2026-01-28 (SP 304 012026)"
+      url: "https://www.sec.gov/Archives/edgar/data/752177/000119312526024997/f43872d1.htm"
+      as_of: "2025-09-30"
+      location: "Annual Total Returns, composite index portion allocations"
+      composite_allocation:
+        crsp_us_total_market: 0.2929
+        ftse_global_all_cap_ex_us: 0.1952
+        bloomberg_us_aggregate_float_adjusted: 0.2987
+        bloomberg_us_tips_0_5_year: 0.0852
+        bloomberg_global_aggregate_ex_usd_hedged: 0.1280
+      equity_raw: 0.4881
+      fixed_income_raw: 0.5119
+      normalisation_note: >
+        Reported figures sum to 1.0000. No renormalisation needed: 0.488.
+      cross_check_actual_holdings:
+        note: >
+          Realised allocation on the same date: 30.1% US stocks, 20.6% foreign
+          stocks, 28.8% US fixed income, 12.1% foreign fixed income, 7.7%
+          inflation-indexed, i.e. 0.511 equity once renormalised. Consistency
+          check only.
+
+  consistency_check: >
+    Three independent checks. First, the provider's published glide path
+    declares a 50% equity allocation at the target date; the 0.488 derived from
+    the schedule and the 0.511 derived from realised holdings bracket it.
+    Second, the slope implied by the two readings agrees to within 0.01
+    percentage points per year (-1.81 against -1.80), so the choice of reading
+    shifts the level and not the shape. Third, both endpoints are read on the
+    same date, so no market-timing artefact separates them.
+
+  source_choice_note: >
+    The composite index weights are adopted rather than the realised holdings
+    because the document describes them as derived from the fund's glide
+    schedule, which is the object being cited, and because they require no
+    renormalisation. Realised holdings drift with market movement between
+    rebalancings and are a consequence of the schedule, not the schedule
+    itself.
+
+  segment_note: >
+    AUTHOR'S DECISION. The published schedule spans roughly forty years; this
+    work uses the ten-year segment preceding the target date. The modelled
+    investor stands ten years from a capital goal exactly as a plan participant
+    stands ten years from retirement, so the slope of the descent is preserved
+    without reparametrisation. Compressing the full forty-year schedule into
+    120 months would alter the very slope being cited.
+
+  rebalancing_note: >
+    AUTHOR'S DECISION. The reference fund rebalances on its own schedule; this
+    work rebalances monthly, imposed by the MDP formulation and by the monthly
+    frequency of the input data.
+
+# -----------------------------------------------------------------------------
+# Projection of the glide path onto the four-asset universe
+# -----------------------------------------------------------------------------
+# AUTHOR'S DECISION, declared as such in section 4.2. The reference fund holds
+# domestic and foreign equity, aggregate bonds, hedged foreign bonds and
+# inflation-linked securities; this universe holds four USD columns.
+asset_mapping:
+  gold: 0.0                       # absent from the reference fund
+  us_equity: equity               # full equity sleeve
+  fixed_income_split:
+    ust10y_share: 0.656452        # phi, solved from the sample-mean durations (A28)
+    ust2y_share: 0.343548         # 1 - phi
+    target_duration_years: 6.0
+    target_duration_source:
+      index: "Bloomberg U.S. Aggregate Float Adjusted Index"
+      via: "Vanguard Total Bond Market II Index Fund, Summary Prospectus, Form 497K, filed 2025-04-29"
+      url: "https://www.sec.gov/Archives/edgar/data/794105/000168386325004124/f41633d1.htm"
+      as_of: "2024-12-31"
+      quoted: "average duration of the Index was 6 years"
+    solved_from: "phi * D10 + (1 - phi) * D2 = target_duration_years"
+    reference_durations_used:
+      D10: 8.5
+      D2: 1.9
+      pending_action: "A28, due 2026-08-26, folded into A26"
+
+    # A28, closed on 2026-10-04. The durations above are the nominal values of the
+    # specification; the ones below are the sample means of the project's own
+    # reconstruction over the window, under D36, and they are what phi now solves from.
+    sample_durations_used:
+      D10: 8.133557
+      D2: 1.923202
+      window: "1990-01 / 2024-12"
+      n_months: 420
+      definition: >
+        Mean over the window of the monthly modified duration of the notional par bond,
+        evaluated at the start-of-period yield, which is the sensitivity the
+        reconstruction of Equation eq:renta-fija actually applied.
+      command: "uv run python -m portfolio_manager.etl.dataset.consolidate --fixed-income-report"
+      computed_on: "2026-10-04"
+
+    recompute_note: >
+      PENDING REFINEMENT. The durations above are the nominal values of the
+      specification. Recompute phi from the sample-mean modified durations
+      produced by the project's own reconstruction over [1990-01, 2024-12]
+      under D36, and record the command that produces them.
+    approximation_note: >
+      AUTHOR'S DECISION. The whole fixed income sleeve is assigned the duration
+      of the US aggregate index. The hedged foreign bond and inflation-linked
+      sleeves are not modelled separately; their duration was not verified.
+    phi_constant_note: >
+      AUTHOR'S DECISION. phi is held constant across the horizon. The
+      reference fund shortens the duration of its bond sleeve as the target
+      date approaches; reproducing that would introduce a second temporal
+      profile requiring its own justification.
+
+# -----------------------------------------------------------------------------
+# Merton CRRA baseline
+# -----------------------------------------------------------------------------
+# No canonical value of gamma exists: published calibrations range from roughly
+# 1-4 in one strand of the literature to 5 or above in the equity premium
+# strand. Adopting a point value would be an author's choice disguised as a
+# citation. The baseline is reported at both ends of the documented range and
+# H2 is declared robust only if it holds at both.
+merton_crra:
+  gamma_values: [2.0, 5.0]
+  calibrated: false
+  rule: "w_equity = (mu - r) / (gamma * sigma^2), clipped to the simplex"
+  provenance_note: >
+    PENDING. Record, for each value, one primary reference with page number.
+    Do not cite second hand. Action A27, due 2026-08-25, inside T18.
+
+# -----------------------------------------------------------------------------
+# Transaction cost
+# -----------------------------------------------------------------------------
+# Amends D24. Published bid-ask spreads for the relevant broad ETFs are not
+# reproducible as a frozen reference: sources report values spanning an order
+# of magnitude for the same product on nearby dates. A conservative declared
+# upper bound is adopted instead, with a robustness sweep.
+transaction_cost:
+  lambda: 0.0010                  # 10 basis points per unit of turnover
+  calibrated: false
+  basis: "proportional to turnover, one way"
+  robustness_sweep: [0.0, 0.0010, 0.0025]
+  rationale: >
+    Declared as a conservative upper bound on retail execution cost rather than
+    as a cited point estimate. The decisive argument is structural: the same
+    lambda applies to the agent and to all four baselines over the same
+    scenarios, so no value of it can favour the proposed system.
+
+# -----------------------------------------------------------------------------
+# Constant mix 60/40 (D68)
+# -----------------------------------------------------------------------------
+# The most widely used allocation rule, rebalanced at the start of every month. It is
+# projected onto the four-asset universe through the SAME asset_mapping as the glide
+# path: no gold, all equity in us_equity, fixed income split phi / 1 - phi. With the
+# mapping shared, the two heuristics differ only in their temporal shape, which is what
+# the comparison is about. Nothing here is calibrated.
+constant_mix:
+  equity_weight: 0.60
+  fixed_income_weight: 0.40
+  calibrated: false
+  uses_asset_mapping: true
+
+# -----------------------------------------------------------------------------
+# Equal weight, 1/N (D68)
+# -----------------------------------------------------------------------------
+# 0.25 per column, the only comparator with a direct exposure to gold. It estimates no
+# parameter at all, which is precisely why it is hard to beat (DeMiguel et al., 2009).
+equal_weight:
+  weight_per_asset: 0.25
+  calibrated: false
+  uses_asset_mapping: false

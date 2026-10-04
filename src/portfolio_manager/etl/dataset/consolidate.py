@@ -13,7 +13,11 @@ This module orchestrates. The provider-specific parsing lives in one module per 
     World Bank monthly commodity prices, in monthly-average convention.
 
 What stays here is what belongs to the matrix as a whole: the configuration, the alignment of four indices into one,
-the window, the verifications, the recorded statistics and the digest.
+the window, the verifications, the recorded statistics and the digest. ``--fixed-income-report`` additionally closes
+A28: it reports the sample-mean modified durations of the reconstruction over the window, solves
+``phi * D_long + (1 - phi) * D_short = target_duration_years`` and writes ``phi`` into ``config/baselines.yml``,
+which is the split that the constant-mix and glide-path comparators of thesis 4.3.5 read (D67, D68). After the first
+run of ``evaluate.py`` the value may no longer change.
 
 Command line, from the repository root:
     uv run python -m portfolio_manager.etl.dataset.consolidate --scale-check
@@ -26,6 +30,7 @@ Command line, from the repository root:
 import argparse
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -36,15 +41,31 @@ import pandas as pd
 import yaml
 
 from portfolio_manager.etl.dataset.equity import load_equity_returns
-from portfolio_manager.etl.dataset.fixed_income import UST2Y, UST10Y, BondSpec, load_bond_returns, scale_check
+from portfolio_manager.etl.dataset.fixed_income import (
+    UST2Y,
+    UST10Y,
+    BondSpec,
+    load_bond_returns,
+    month_end_observations,
+    read_fred_daily,
+    return_components,
+    scale_check,
+)
 from portfolio_manager.etl.dataset.gold import load_gold_returns
 
 # Constants
 # =====================================================================
 RAW_DIRECTORY = Path("data/raw")
-CONFIG_PATH = Path("config/dataset.yaml")
+CONFIG_DIR = Path("config")
+CONFIG_PATH = Path("config/dataset.yml")
 MATRIX_PATH = Path("data/returns_matrix.csv")
 MATRIX_METADATA_PATH = Path("data/returns_matrix.json")
+PHI_DECIMALS = 6
+"""Decimals written for the fixed-income split. The stored value is compared at the same precision,
+so re-running the report on an already-updated file rewrites nothing."""
+
+PHI_COMMENT_COLUMN = 34
+"""Column at which the inline comments of the split are aligned, matching the rest of the file."""
 
 
 # =====================================================================================
@@ -143,7 +164,7 @@ def build_matrix(raw_dir: Path = RAW_DIRECTORY, config: DatasetConfig | None = N
 
     Args:
         raw_dir: Directory holding the four raw files.
-        config: Window, column names and bond specifications. Defaults come from ``config/dataset.yaml`` if present.
+        config: Window, column names and bond specifications. Defaults come from ``config/dataset.yml`` if present.
 
     Returns:
         Frame of 420 rows by 4 columns, ``float64``, indexed by month.
@@ -227,6 +248,238 @@ def write_matrix(
 
 
 # ======================================================================================
+# A28: sample-mean modified durations and the fixed-income split phi
+# ======================================================================================
+def baselines_path() -> Path:
+    """Return ``config/baselines.yml``.
+
+    ``.yml`` is the extension this repository uses; ``.yaml`` is still accepted on read so that a
+    file carried over under the other spelling is found rather than silently ignored.
+    """
+    for suffix in (".yml", ".yaml"):
+        candidate = CONFIG_DIR / f"baselines{suffix}"
+        if candidate.is_file():
+            return candidate
+    return CONFIG_DIR / "baselines.yml"
+
+
+def sample_mean_modified_durations(raw_dir: Path, config: DatasetConfig) -> dict[str, float]:
+    """Mean modified duration of each reconstructed bond leg over the window.
+
+    The sensitivities are the ones the reconstruction actually used: recomputed every month from the
+    start-of-period yield under the par-bond assumption (D36). Averaging them over the window gives
+    the duration the leg carried on average, which is what the fixed-income split must reproduce.
+
+    Args:
+        raw_dir: Directory holding the raw yield files.
+        config: Window and bond specifications.
+
+    Returns:
+        Mapping from column name to mean modified duration, in years.
+    """
+    durations: dict[str, float] = {}
+    for spec in config.bonds:
+        monthly = month_end_observations(read_fred_daily(raw_dir / spec.filename))
+        components = return_components(monthly["yield_pct"], spec)
+        components.index = components.index.to_period("M")
+        window = components.loc[config.window_start : config.window_end, "modified_duration"]
+        if len(window) != config.expected_rows:
+            raise ValueError(
+                f"{spec.name}: {len(window)} monthly durations between {config.window_start} and "
+                f"{config.window_end}, expected {config.expected_rows}"
+            )
+        durations[spec.name] = float(window.mean())
+    return durations
+
+
+def solve_phi(duration_long: float, duration_short: float, target: float) -> float:
+    """Solve ``phi * D_long + (1 - phi) * D_short = target`` for ``phi``.
+
+    Args:
+        duration_long: Mean modified duration of the long leg.
+        duration_short: Mean modified duration of the short leg.
+        target: Target duration of the aggregate index being reproduced.
+
+    Returns:
+        The share of the long leg. Not clipped: a target outside the two durations is a
+        specification error and must surface as a weight outside ``[0, 1]`` rather than be hidden.
+    """
+    if duration_long == duration_short:
+        raise ValueError("the two legs have the same mean duration; the split is undetermined")
+    return (target - duration_short) / (duration_long - duration_short)
+
+
+def _set_yaml_scalar(text: str, key: str, indent: int, value: str) -> str:
+    """Replace the value of the single ``key`` at the given indentation, comments elsewhere intact.
+
+    The file carries the provenance of every externally sourced parameter in its comments, so it is
+    patched line by line rather than re-dumped.
+    """
+    pattern = re.compile(rf"^{' ' * indent}{re.escape(key)}:[^\S\n]*(?P<old>[^\n]*)$", re.MULTILINE)
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one '{key}:' at indent {indent}, found {len(matches)}")
+    match = matches[0]
+    return f"{text[: match.start()]}{' ' * indent}{key}: {value}{text[match.end():]}"
+
+
+def _commented(key: str, indent: int, value: float, comment: str) -> str:
+    """Render a numeric value with its inline comment aligned to the column used by the file."""
+    rendered = f"{value:.{PHI_DECIMALS}f}"
+    padding = max(1, PHI_COMMENT_COLUMN - (indent + len(key) + 2 + len(rendered)))
+    return f"{rendered}{' ' * padding}# {comment}"
+
+
+def _insert_yaml_block(text: str, anchor_key: str, indent: int, block: str) -> str:
+    """Insert ``block`` after the mapping headed by ``anchor_key``, not inside it.
+
+    The anchor's own entries sit at a deeper indentation and must be skipped: inserting between the
+    header and its entries would reparent them to the new block and silently empty the anchor.
+    """
+    pattern = re.compile(rf"^{' ' * indent}{re.escape(anchor_key)}:[^\S\n]*[^\n]*$", re.MULTILINE)
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one '{anchor_key}:' at indent {indent}, found {len(matches)}")
+
+    end = matches[0].end()
+    while end < len(text):
+        line_end = text.find("\n", end + 1)
+        line_end = len(text) if line_end == -1 else line_end
+        line = text[end + 1 : line_end]
+        if not line.strip() or not line.startswith(" " * (indent + 1)):
+            break
+        end = line_end
+    return f"{text[:end]}\n{block.rstrip()}{text[end:]}"
+
+
+def write_fixed_income_split(
+    durations: dict[str, float], config: DatasetConfig, path: Path | None = None
+) -> tuple[float, bool]:
+    """Write the sample-based ``phi`` into the baselines configuration.
+
+    Closes A28. The nominal 0.621 of the specification came from reference durations of 8.5 and 1.9
+    years; this replaces it with the value solved from the project's own reconstruction, and records
+    the two durations next to it. The external provenance of the six-year target is left untouched.
+
+    Args:
+        durations: Mean modified duration per bond column.
+        config: Bond specifications, used to tell the long leg from the short one.
+        path: Destination; resolved from the configuration directory when omitted.
+
+    Returns:
+        Tuple ``(phi, rewritten)``.
+    """
+    path = path or baselines_path()
+    text = path.read_text(encoding="utf-8")
+    document = yaml.safe_load(text) or {}
+    split = document["asset_mapping"]["fixed_income_split"]
+    target = float(split["target_duration_years"])
+
+    ordered = sorted(config.bonds, key=lambda spec: spec.maturity_years)
+    short_leg, long_leg = ordered[0].name, ordered[-1].name
+    phi = round(solve_phi(durations[long_leg], durations[short_leg], target), PHI_DECIMALS)
+
+    if float(split[f"{long_leg}_share"]) == phi:
+        return phi, False
+
+    long_key, short_key = f"{long_leg}_share", f"{short_leg}_share"
+    text = _set_yaml_scalar(
+        text, long_key, 4, _commented(long_key, 4, phi, "phi, solved from the sample-mean durations (A28)")
+    )
+    text = _set_yaml_scalar(text, short_key, 4, _commented(short_key, 4, 1.0 - phi, "1 - phi"))
+
+    if "sample_durations_used" not in document["asset_mapping"]["fixed_income_split"]:
+        block = (
+            "    # A28, closed on {date}. The durations above are the nominal values of the\n"
+            "    # specification; the ones below are the sample means of the project's own\n"
+            "    # reconstruction over the window, under D36, and they are what phi now solves from.\n"
+            "    sample_durations_used:\n"
+            "      {long_key}: {d_long:.6f}\n"
+            "      {short_key}: {d_short:.6f}\n"
+            "      window: \"{start} / {end}\"\n"
+            "      n_months: {n_months}\n"
+            "      definition: >\n"
+            "        Mean over the window of the monthly modified duration of the notional par bond,\n"
+            "        evaluated at the start-of-period yield, which is the sensitivity the\n"
+            "        reconstruction of Equation eq:renta-fija actually applied.\n"
+            "      command: \"uv run python -m portfolio_manager.etl.dataset.consolidate --fixed-income-report\"\n"
+            "      computed_on: \"{date}\"\n"
+        ).format(
+            date=datetime.now(UTC).date().isoformat(),
+            long_key=f"D{int(max(spec.maturity_years for spec in config.bonds))}",
+            short_key=f"D{int(min(spec.maturity_years for spec in config.bonds))}",
+            d_long=durations[long_leg],
+            d_short=durations[short_leg],
+            start=config.window_start,
+            end=config.window_end,
+            n_months=config.expected_rows,
+        )
+        text = _insert_yaml_block(text, "reference_durations_used", 4, "\n" + block)
+
+    path.write_text(text, encoding="utf-8")
+    return phi, True
+
+
+def ensure_comparator_blocks(path: Path | None = None) -> list[str]:
+    """Add the ``constant_mix`` and ``equal_weight`` blocks if absent (D68).
+
+    Both comparators project onto the four-asset universe through the same ``asset_mapping`` as the
+    glide path, so the two rules differ only in their temporal shape. Written before ``baselines.py``
+    exists, so no weight is an implicit choice made inside the code.
+
+    Args:
+        path: Destination; resolved from the configuration directory when omitted.
+
+    Returns:
+        The blocks actually appended.
+    """
+    path = path or baselines_path()
+    text = path.read_text(encoding="utf-8")
+    document = yaml.safe_load(text) or {}
+    added: list[str] = []
+    if not text.endswith("\n"):
+        text += "\n"
+
+    if "constant_mix" not in document:
+        text += (
+            "\n"
+            "# -----------------------------------------------------------------------------\n"
+            "# Constant mix 60/40 (D68)\n"
+            "# -----------------------------------------------------------------------------\n"
+            "# The most widely used allocation rule, rebalanced at the start of every month. It is\n"
+            "# projected onto the four-asset universe through the SAME asset_mapping as the glide\n"
+            "# path: no gold, all equity in us_equity, fixed income split phi / 1 - phi. With the\n"
+            "# mapping shared, the two heuristics differ only in their temporal shape, which is what\n"
+            "# the comparison is about. Nothing here is calibrated.\n"
+            "constant_mix:\n"
+            "  equity_weight: 0.60\n"
+            "  fixed_income_weight: 0.40\n"
+            "  calibrated: false\n"
+            "  uses_asset_mapping: true\n"
+        )
+        added.append("constant_mix")
+
+    if "equal_weight" not in document:
+        text += (
+            "\n"
+            "# -----------------------------------------------------------------------------\n"
+            "# Equal weight, 1/N (D68)\n"
+            "# -----------------------------------------------------------------------------\n"
+            "# 0.25 per column, the only comparator with a direct exposure to gold. It estimates no\n"
+            "# parameter at all, which is precisely why it is hard to beat (DeMiguel et al., 2009).\n"
+            "equal_weight:\n"
+            "  weight_per_asset: 0.25\n"
+            "  calibrated: false\n"
+            "  uses_asset_mapping: false\n"
+        )
+        added.append("equal_weight")
+
+    if added:
+        path.write_text(text, encoding="utf-8")
+    return added
+
+
+# ======================================================================================
 # Command line
 # ======================================================================================
 def _print_scale_check(config: DatasetConfig) -> None:
@@ -260,6 +513,29 @@ def _print_fixed_income_report(raw_dir: Path, config: DatasetConfig) -> None:
         )
         calendar = (1.0 + window).groupby(window.index.year).prod() - 1.0
         print("\t worst calendar years: " + ", ".join(f"{y} {v:.2%}" for y, v in calendar.nsmallest(3).items()))
+
+    # A28: the two sample-mean modified durations and the split they imply.
+    durations = sample_mean_modified_durations(raw_dir, config)
+    path = baselines_path()
+    target = float(
+        (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["asset_mapping"]["fixed_income_split"][
+            "target_duration_years"
+        ]
+    )
+    print(f"\nsample-mean modified duration, {config.window_start} to {config.window_end}:")
+    for name, value in durations.items():
+        print(f"\t {name}: {value:6.4f} years")
+
+    phi, rewritten = write_fixed_income_split(durations, config, path)
+    ordered = sorted(config.bonds, key=lambda spec: spec.maturity_years)
+    print(
+        f"\nphi * D({ordered[-1].name}) + (1 - phi) * D({ordered[0].name}) = {target} "
+        f"-> phi = {phi:.6f}, 1 - phi = {1.0 - phi:.6f}"
+    )
+    print(f"{'rewrote' if rewritten else 'already current in'} {path}")
+    added = ensure_comparator_blocks(path)
+    if added:
+        print(f"added comparator blocks to {path}: {', '.join(added)}")
 
 
 def _print_build(raw_dir: Path, config: DatasetConfig) -> None:

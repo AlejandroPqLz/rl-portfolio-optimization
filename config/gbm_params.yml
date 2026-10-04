@@ -1,0 +1,44 @@
+# Parameters of the parametric generator (mode A).
+# =============================================================================
+# Mean vector and covariance of the monthly LOG GROSS returns, log(1 + r), estimated once
+# from the consolidated historical matrix and never re-estimated at generation time
+# (thesis 4.3.3). The simple return handed to the environment is exp(x) - 1.
+#
+# Written by:
+#   uv run python -m portfolio_manager.generator --fit-gbm
+#
+# 'assets' repeats the normative column order of config/test_set.yml:data.assets. The
+# digest below identifies the matrix the estimate came from; per D39 it is informational
+# and is never compared against a frozen reference.
+# =============================================================================
+
+assets:
+- us_equity
+- ust10y
+- ust2y
+- gold
+mu:
+- 0.00847387000045738
+- 0.0040163049961536605
+- 0.0028336164812801387
+- 0.004447249430985948
+sigma:
+- - 0.0019731999194056065
+  - -5.265184945714877e-05
+  - -2.375411189460488e-05
+  - -0.00011075475467023387
+- - -5.265184945714877e-05
+  - 0.0004623063023850448
+  - 8.904682443491976e-05
+  - 8.258344329023958e-05
+- - -2.375411189460488e-05
+  - 8.904682443491976e-05
+  - 2.9900616678935627e-05
+  - 1.4631778477210266e-05
+- - -0.00011075475467023387
+  - 8.258344329023958e-05
+  - 1.4631778477210266e-05
+  - 0.0011914903814234888
+source_matrix_sha256: a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca
+window: 1990-01 / 2024-12
+estimated_on: '2026-10-04'

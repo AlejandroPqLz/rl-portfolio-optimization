@@ -1,0 +1,184 @@
+{
+  "all_passed": true,
+  "block_length": null,
+  "checks": {
+    "correlations": {
+      "pairs": {
+        "us_equity|gold": {
+          "absolute_deviation": 0.0009004724769173106,
+          "historical": -0.07211018548372107,
+          "passed": true,
+          "synthetic": -0.07301065796063838
+        },
+        "us_equity|ust10y": {
+          "absolute_deviation": 0.001023578058972914,
+          "historical": -0.05538441954710487,
+          "passed": true,
+          "synthetic": -0.05640799760607779
+        },
+        "us_equity|ust2y": {
+          "absolute_deviation": 0.006994713728837004,
+          "historical": -0.09286509771726152,
+          "passed": true,
+          "synthetic": -0.09985981144609853
+        },
+        "ust10y|gold": {
+          "absolute_deviation": 0.0008227965705051438,
+          "historical": 0.11192734799565118,
+          "passed": true,
+          "synthetic": 0.11275014456615633
+        },
+        "ust10y|ust2y": {
+          "absolute_deviation": 0.00011916550497181877,
+          "historical": 0.756615476151078,
+          "passed": true,
+          "synthetic": 0.7564963106461062
+        },
+        "ust2y|gold": {
+          "absolute_deviation": 0.0026878280513375347,
+          "historical": 0.0770604095775039,
+          "passed": true,
+          "synthetic": 0.07974823762884144
+        }
+      },
+      "passed": true,
+      "tolerance": 0.05
+    },
+    "marginals": {
+      "assets": {
+        "gold": {
+          "historical_mean": 0.005056569973376625,
+          "historical_std": 0.03490892237514326,
+          "mean_passed": true,
+          "mean_tolerance": 0.0034097024233036926,
+          "std_passed": true,
+          "std_tolerance": 0.0024138941617276896,
+          "synthetic_mean": 0.00497824455527666,
+          "synthetic_std": 0.034678550241115276
+        },
+        "us_equity": {
+          "historical_mean": 0.009492142857142857,
+          "historical_std": 0.04414349037416401,
+          "mean_passed": true,
+          "mean_tolerance": 0.004311868258056322,
+          "std_passed": true,
+          "std_tolerance": 0.003052580915963039,
+          "synthetic_mean": 0.009661289790024044,
+          "synthetic_std": 0.04493858948528934
+        },
+        "ust10y": {
+          "historical_mean": 0.004255833098515644,
+          "historical_std": 0.02158178249889318,
+          "mean_passed": true,
+          "mean_tolerance": 0.0021080028549884675,
+          "std_passed": true,
+          "std_tolerance": 0.0014923577033646802,
+          "synthetic_mean": 0.004297208929806362,
+          "synthetic_std": 0.021549252789413862
+        },
+        "ust2y": {
+          "historical_mean": 0.002852600138424271,
+          "historical_std": 0.005488210252725741,
+          "mean_passed": true,
+          "mean_tolerance": 0.0005360623559693847,
+          "std_passed": true,
+          "std_tolerance": 0.000379504601486025,
+          "synthetic_mean": 0.002859638746072094,
+          "synthetic_std": 0.0054849101077691
+        }
+      },
+      "excess_kurtosis": {
+        "asset": "us_equity",
+        "criterion": "compatible with zero",
+        "historical": 1.0177980109736273,
+        "passed": true,
+        "standard_error": 0.01,
+        "synthetic": 0.01523833555337184,
+        "tolerance": 0.1,
+        "z_score": 1.523833555337184
+      },
+      "passed": true
+    },
+    "reproducibility": {
+      "digest": "b6fd76e48deb83048a546673f11b9646b9ebabc2ac1429e8cc467a8002adbe01",
+      "other_seed": 1001,
+      "other_seed_digest": "2cabbb08d82f0a7df8cfaec97a1e60e61ff1b8fea2d5796a9028b6344c3420e7",
+      "passed": true,
+      "same_seed_digest": "b6fd76e48deb83048a546673f11b9646b9ebabc2ac1429e8cc467a8002adbe01"
+    },
+    "temporal_dependence": {
+      "assets": {
+        "gold": {
+          "expected": 0.0,
+          "historical_lag1": 0.1473442935294842,
+          "passed": true,
+          "standard_error": 0.0020498001542269694,
+          "synthetic_lag1": 0.0010562133031078544,
+          "tolerance": 0.05,
+          "z_score": 0.5152762336024795
+        },
+        "ust2y": {
+          "expected": 0.0,
+          "historical_lag1": 0.3574511146948273,
+          "passed": true,
+          "standard_error": 0.0020498001542269694,
+          "synthetic_lag1": 0.003597281716788833,
+          "tolerance": 0.05,
+          "z_score": 1.7549426510534425
+        }
+      },
+      "passed": true
+    },
+    "volatility_clustering": {
+      "applicable": false,
+      "asset": "us_equity",
+      "lags": {
+        "1": {
+          "historical": 0.18088890553089199,
+          "passed": false,
+          "synthetic": -0.0010711787333512756
+        },
+        "2": {
+          "historical": 0.12311401452026965,
+          "passed": true,
+          "synthetic": 0.001709567807089645
+        },
+        "3": {
+          "historical": 0.17145000403730704,
+          "passed": false,
+          "synthetic": -0.001299373675660749
+        }
+      },
+      "passed": true
+    }
+  },
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/generator.py",
+    "--stylized-facts",
+    "--mode",
+    "A"
+  ],
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 6,
+    "torch_version": "2.13.0"
+  },
+  "git_commit": "6afb70a2a444874dd42603e3e7d7a7f738e077e1",
+  "horizon": 120,
+  "mode": "A",
+  "n_historical_observations": 420,
+  "n_scenarios": 2000,
+  "n_synthetic_observations": 240000,
+  "seed": 1000,
+  "source_matrix_sha256": "a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca",
+  "written_at_utc": "2026-10-04T16:54:50+00:00"
+}
