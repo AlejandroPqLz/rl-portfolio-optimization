@@ -516,14 +516,19 @@ class GoalPortfolioEnv(gymnasium.Env):
 
 
 def _ppo_gamma() -> float:
-    """Read the discount the agent uses, which the shaping term must match."""
+    """Read the discount the agent uses, which the shaping term must match.
+
+    One value, read from the agent's own configuration rather than declared a second time here. A
+    potential discounted at one rate while the algorithm optimises at another is not
+    policy-invariant, and a second declaration is how the two would drift apart.
+    """
     path = config_path("ppo")
     if not path.is_file():
         raise FileNotFoundError(
             f"{path} not found: shaping must use the same discount as the learning algorithm, so the "
             "value cannot be invented here. Pass shaping_gamma explicitly, or build config/ppo.yml."
         )
-    return float((yaml.safe_load(path.read_text(encoding="utf-8")) or {})["gamma"])
+    return float((yaml.safe_load(path.read_text(encoding="utf-8")) or {})["ppo"]["gamma"])
 
 
 # ======================================================================================

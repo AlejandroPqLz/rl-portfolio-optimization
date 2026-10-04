@@ -542,10 +542,21 @@ def test_shaping_will_not_invent_a_discount(scenarios, problem, monkeypatch, tmp
 def test_shaping_reads_the_discount_from_the_agent_configuration(scenarios, problem, monkeypatch, tmp_path):
     """When that file does exist, the value comes from it and not from a second declaration."""
     (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "ppo.yml").write_text("gamma: 0.97\n", encoding="utf-8")
+    (tmp_path / "config" / "ppo.yml").write_text("ppo:\n  gamma: 0.97\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     env = GoalPortfolioEnv(scenarios=scenarios, problem=problem, shaping=True)
     assert env._shaping_gamma == pytest.approx(0.97)
+
+
+def test_shaping_uses_the_discount_the_agent_actually_runs_with(scenarios, problem):
+    """The value in the tree, not a copy of it: one declaration, read by both modules."""
+    import yaml as _yaml
+
+    from portfolio_manager.generator import config_path as _config_path
+
+    declared = _yaml.safe_load(_config_path("ppo").read_text(encoding="utf-8"))["ppo"]["gamma"]
+    env = GoalPortfolioEnv(scenarios=scenarios, problem=problem, shaping=True)
+    assert env._shaping_gamma == declared
 
 
 # ======================================================================================

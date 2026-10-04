@@ -1,0 +1,110 @@
+# =============================================================================
+# THE AGENT: PPO HYPERPARAMETERS AND THE DIRICHLET POLICY
+# =============================================================================
+# Read by `train.py`, and by `env.py` for the one value the two must share, the
+# discount of the optional shaping term.
+#
+# WHY THE DEFAULTS ARE WRITTEN OUT INSTEAD OF OMITTED (D57)
+#   Every value under `ppo` below is the Stable-Baselines3 2.9.0 default. None
+#   was tuned. Leaving them implicit would make that claim unverifiable: a
+#   reader could not tell a deliberate choice from an inherited one, and a
+#   future version of the library could change a default underneath the results
+#   without anything in the repository recording it. Written out, the
+#   hyperparameters of the memoir are a fact of this file rather than of
+#   whichever version happens to be installed.
+#
+#   The block was produced by reading `inspect.signature(PPO.__init__)` of the
+#   installed package, not transcribed from documentation or memory. A test
+#   compares it back against that signature and fails if the two diverge, which
+#   is what turns "these are the defaults" into a checkable statement.
+#
+#   NOT TUNING is itself the declared position. The contribution under test is
+#   the formulation of the problem and the Dirichlet policy, not a search over
+#   hyperparameters; a tuned agent compared against untuned heuristics would
+#   measure the search and not the method.
+# =============================================================================
+
+meta:
+  schema_version: 1
+  written_on: 2026-10-04
+  stable_baselines3_version: "2.9.0"
+  source: "inspect.signature(stable_baselines3.PPO.__init__)"
+  description: >
+    Hyperparameters of the agent. The `ppo` block is the untouched library
+    default; everything outside it is a decision of this project.
+
+# --- Stable-Baselines3 PPO defaults, verbatim --------------------------------
+# Passed straight to the constructor. Do not edit without recording a decision:
+# the claim these support is that no hyperparameter was searched over.
+ppo:
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  clip_range_vf: null
+  normalize_advantage: true
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  use_sde: false
+  sde_sample_freq: -1
+  target_kl: null
+  stats_window_size: 100
+
+# --- The Dirichlet policy (D27, D57) -----------------------------------------
+# The policy is a Dirichlet distribution over the simplex, implemented as a
+# `Distribution` subclass inside SB3. The algorithm itself is not modified
+# (D26). The concentration is alpha = softplus(logits) + alpha_min.
+#
+# alpha_min > 1 is required by D57 and is not a tuning knob. Below one the
+# Dirichlet density diverges at the faces of the simplex, so the log-probability
+# of a sampled action is unbounded above and the ratio PPO clips becomes
+# numerically meaningless. At exactly one the density is flat and the mode is
+# undefined. Just above one the density is bounded and vanishes at the
+# boundary, while staying low enough that a near-corner portfolio is still
+# reachable: the constraint removes a numerical failure mode without removing
+# any portfolio from the agent's reach.
+policy:
+  alpha_min: 1.1
+  log_prob_epsilon: 1.0e-6     # actions are clamped to [eps, 1 - eps] and renormalised before
+                               # log_prob, because a component that rounds to 0 in float32 gives
+                               # log_prob = -inf and destroys the update
+  deterministic_action: mean   # the Dirichlet mean, which is always interior and on the simplex
+
+# --- Training loop -----------------------------------------------------------
+# n_envs is a throughput choice on a CPU with small multilayer perceptrons, not
+# an algorithmic one: it changes how many transitions are gathered per rollout,
+# not what is learned. Each sub-environment owns its own generator stream,
+# seeded `seed * 100 + env_index` inside the training band 0-999, which keeps
+# the streams of a run disjoint from each other and from the validation and
+# test bands (D23).
+device: cpu                    # MPS is slower for networks this size and is not bit-reproducible
+n_envs: 8
+total_timesteps: 1000000       # default only; the unattended batch sizes this from the measured
+                               # seconds per 100k steps of the smoke run
+
+# --- Held-out evaluation during training -------------------------------------
+# A tensor built once per run with validation_seed = 1000 + seed, inside the
+# validation band and therefore disjoint from both the training streams and the
+# frozen test set. It exists to show whether the agent is learning at all; no
+# decision is taken on the frozen test set, and none is taken on this one
+# either beyond the degradation criterion.
+#
+# eval_freq counts TOTAL environment steps, not calls of the callback, so it
+# does not change meaning when n_envs changes.
+eval_freq: 25000
+n_eval_scenarios: 2000
+
+# --- Reward shaping, contingency only (D74, A40) -----------------------------
+# Off unless `--shaping` is passed. The pre-declared rule: the shaping run is
+# read only if the five unshaped A_gbm seeds show no improvement in
+# P(W_T >= G) over the random policy at their final checkpoint; otherwise it is
+# discarded unread. The discount of the shaping term must equal `ppo.gamma`,
+# or the term stops being policy-invariant for the objective PPO optimises;
+# `env.py` reads it from this file for exactly that reason.
+shaping:
+  enabled_by_default: false
+  gamma_source: ppo.gamma
