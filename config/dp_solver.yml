@@ -1,0 +1,153 @@
+# =============================================================================
+# DYNAMIC PROGRAMMING SOLVER: THE DISCRETISATION
+# =============================================================================
+# The table this produces is the optimal policy of the problem, not an
+# approximation to it in the sense a learned policy is: backward induction
+# solves the Bellman equation exactly on the grid, and the only error is the
+# discretisation declared here. That is what makes it the reference against
+# which the agent is checked in the first hypothesis.
+#
+# The guarantee holds exactly where the state is Markovian, which is under the
+# parametric generator and at zero transaction cost (Subsection 3.2.1). Applied
+# to resampled scenarios or with costs the table is a strategy computed for a
+# neighbouring problem, and it is reported under that condition.
+#
+# THREE DECISIONS, ALL OF THEM DISCRETISATIONS
+#   The wealth axis, the set of candidate portfolios and the expectation. None
+#   is a modelling choice; each is a resolution, and each is checked by the
+#   stability block at the bottom rather than asserted.
+# =============================================================================
+
+meta:
+  schema_version: 1
+  written_on: 2026-10-04
+  description: >
+    Grid, action set and quadrature for the backward induction of thesis
+    subsection 4.3.6.
+
+# --- The wealth axis ---------------------------------------------------------
+# Normalised wealth W/G on equispaced nodes. The step is 0.01 goal units, that
+# is 600 USD in the base case. A state between two nodes is interpolated
+# linearly; above the upper bound the value is held at the last node.
+#
+# The bound is set so that no plausible trajectory reaches it: four times the
+# goal is 240,000 USD from 48,000 USD of contributions, which needs an annual
+# return far above anything in the universe. As a safeguard the solver records
+# whether any quadrature node crossed it, so the assumption is measured rather
+# than trusted.
+#
+# Remaining contributions need no nodes of their own. In the base case the
+# contribution is constant, so the third component of the state is a
+# deterministic function of the second and one node per instant suffices.
+n_wealth: 401
+wealth_max_over_goal: 4.0
+interpolation: linear
+
+# --- The candidate portfolios ------------------------------------------------
+# Simplex points whose weights are multiples of the step: with four assets and
+# a step of 0.05 there are C(23,3) = 1771 of them. The same figure dimensions
+# the discrete alternative discussed in Subsection 3.2.4.
+action_step: 0.05
+
+# --- The expectation ---------------------------------------------------------
+# Gauss-Hermite quadrature in tensor product over the independent factors of
+# the covariance factorisation: with four non-degenerate factors and five nodes
+# each, 625 return vectors. Factors with zero variance receive no nodes, which
+# is what keeps the Browne validation configuration tractable: three riskless
+# assets there reduce the product to the five nodes of the single risky factor.
+n_quad: 5
+
+# --- The problem being solved ------------------------------------------------
+# objective: `lpm2` in the experimental configuration, `indicator` in the
+#   validation one, because the closed form of Browne (1999) maximises the
+#   probability of success and comparing a policy of order 2 against a table of
+#   order 0 would measure the difference between objectives (D44).
+#
+# cost_bp: zero, and not negotiable (D56). The transaction cost makes the
+#   transition depend on the arrival weights, which are not part of the state;
+#   including it would add three components to the grid and destroy the
+#   tractability that makes an exact reference possible at all. The table is
+#   therefore computed without costs and evaluated as one more comparator in
+#   the configurations that have them.
+objective: lpm2
+cost_bp: 0
+
+# --- Ties between optimal portfolios -----------------------------------------
+# The optimum is not unique everywhere, and where it is not, the degeneracy is
+# exact rather than numerical. Two regions produce it. At zero wealth the
+# action has no effect on the transition at all, which is a consequence of the
+# base case noted in thesis 4.3.4. Above roughly 1.1 goal units the value is
+# identically zero, because no sequence of quadrature returns can bring the
+# investor below the goal from there, so every portfolio attains the optimum.
+# In between, where the problem is actually a problem, the optimum is unique.
+#
+# This matters beyond presentation. The table is evaluated as one more
+# comparator on resampled scenarios, where a portfolio that is riskless under
+# the model is not riskless in fact, and it is the reference the policy map of
+# the first hypothesis is compared against. Selecting by enumeration order
+# would put 100 % gold across the whole degenerate region: an artefact of how
+# the simplex is enumerated, read as a recommendation.
+#
+# `min_variance` therefore selects, among portfolios the objective cannot
+# distinguish, the one with the smallest variance of the portfolio return under
+# the quadrature. It cannot change the value function, since every candidate it
+# chooses between attains the same optimum; it only decides what is reported
+# and what is carried out of sample. `first` restores selection by enumeration
+# order. The count of tied optima is saved beside the tables either way, so any
+# consumer can exclude degenerate states instead of comparing noise.
+#
+# AUTHOR'S DECISION, and the one value here that is not forced by 4.3.6.
+tie_break: min_variance
+tie_tolerance: 1.0e-12
+
+# --- Internal stability checks -----------------------------------------------
+# The discretisation introduces its own error, so before any external
+# validation the solve is repeated at higher resolution and the two are
+# compared. Neither check proves the implementation correct: an error in the
+# recursion would reproduce itself at any resolution. They bound the
+# discretisation error and nothing else; correctness is what the validation
+# against Browne addresses.
+#
+# value_tol applies to the value at the initial state, in reward units, where
+#   the reward is bounded in [-1, 0].
+# policy_agreement is the fraction of visited nodes at which the two tables
+#   must choose portfolios no more than one action-grid step apart, measured in
+#   the maximum norm. The nodes are those the test-set trajectories actually
+#   visit, because agreement in a region no trajectory reaches says nothing.
+stability:
+  n_wealth: 801
+  n_quad: 7
+  value_tol: 0.005
+  policy_agreement: 0.95
+
+# --- Implementation ----------------------------------------------------------
+# Candidate portfolios evaluated per batch. Primarily a memory bound: the
+# intermediate array is (n_wealth, chunk, n_quad^k) and the solver caps this
+# further so that the batch of every worker fits at once.
+#
+# It is not quite free of consequence, and the exception is worth knowing. The
+# batch size decides how the contraction over the quadrature axis is blocked,
+# so it moves the last bits of the value function: a batch of 64 differs from
+# one of 31 by about 2e-15. That is nothing beside any threshold in this file,
+# but it does mean the table is reproducible for a given batch size rather than
+# in the abstract. The batch size is therefore fixed here and never derived
+# from the machine, so that two machines with different core counts produce the
+# same table.
+action_chunk: 64
+
+# Worker threads over the action batches of a month. The batches of one month
+# are independent of each other and each writes a disjoint block of columns, so
+# the result does not depend on how they are scheduled: the parallel solve is
+# bit-identical to the serial one, and a test asserts it rather than assuming
+# it. The loop over months stays sequential, because month t needs the value
+# function of month t + 1.
+#
+# Threads rather than processes, measured and not assumed: the inner loop is
+# NumPy arithmetic over large arrays, which releases the interpreter lock, so
+# threads reached 3.1x against 2.2x for a process pool on the same machine. The
+# pool loses on pickling the result of every batch, which threads share
+# directly.
+#
+# `null` means the number of performance cores. Above that the gain stops:
+# efficiency cores contribute little and contend for memory bandwidth.
+n_workers: null

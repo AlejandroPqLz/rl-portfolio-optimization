@@ -2,6 +2,9 @@ data/raw/
 data/processed/
 results/**/*.npy
 results/**/*.zip
+# TensorBoard event files. results/runs/ is otherwise versioned so that
+# metrics.json survives: it is what the unattended batch is read from.
+results/runs/**/tensorboard/
 __pycache__/
 *.pyc
 .venv/

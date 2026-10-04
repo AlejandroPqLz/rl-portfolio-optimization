@@ -1,0 +1,65 @@
+{
+  "all_passed": false,
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/dp_solver.py",
+    "--config",
+    "A_gbm",
+    "--stability"
+  ],
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 6,
+    "torch_version": "2.13.0"
+  },
+  "git_commit": "6c329f23473e49c7c8702ce00dbdbda1709cabce",
+  "policy": {
+    "agreement_on_unique_optima": 0.6592679127725857,
+    "agreement_within_one_step": 0.6909219357117626,
+    "max_deviation": 0.3500000000000001,
+    "passed": false,
+    "required": 0.95,
+    "scenarios": 2000,
+    "value_loss": {
+      "max": 3.458322044170431e-06,
+      "mean": 1.3957749354655703e-07,
+      "mean_where_disagreeing": 2.725109196627584e-07,
+      "relative_to_value_tolerance": 0.0006916644088340862
+    },
+    "visited_nodes": 2831,
+    "visited_nodes_with_unique_optimum": 2568
+  },
+  "reference": {
+    "n_quad": 5,
+    "n_wealth": 401
+  },
+  "refined": {
+    "n_quad": 7,
+    "n_wealth": 801
+  },
+  "seconds_elapsed": 551.4038197910413,
+  "upper_bound": {
+    "bound": 4.0,
+    "exceeded": true,
+    "max_wealth_reached_over_goal": 4.586565375083282
+  },
+  "value": {
+    "absolute_difference": 0.00022664599341763243,
+    "initial_state_over_goal": 0.0,
+    "passed": true,
+    "reference": -0.0005164165360361279,
+    "refined": -0.0002897705426184955,
+    "relative_difference": 0.43888213796813147,
+    "tolerance": 0.005,
+    "tolerance_over_value": 9.682106693133091
+  },
+  "written_at_utc": "2026-10-04T19:38:29+00:00"
+}
