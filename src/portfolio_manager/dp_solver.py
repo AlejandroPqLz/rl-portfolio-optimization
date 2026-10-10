@@ -56,6 +56,14 @@ import numpy as np
 import yaml
 
 from portfolio_manager.baselines import dp_table_policy
+from portfolio_manager.browne import (
+    BrowneParameters,
+    borrowing_boundary,
+    optimal_fraction,
+    parameters_from_gbm,
+    relative_wealth,
+)
+from portfolio_manager.browne import value as browne_value
 from portfolio_manager.env import (
     OBJECTIVE_INDICATOR,
     OBJECTIVES,
@@ -74,7 +82,6 @@ from portfolio_manager.generator import (
     git_commit,
     load_gbm_params,
     load_matrix,
-    load_matrix_metadata,
     load_test_set,
     write_sidecar,
 )
@@ -828,42 +835,57 @@ def scale_params(params: GbmParams, steps_per_month: float) -> GbmParams:
 
 
 def browne_setup(
-    browne: dict[str, Any], columns: tuple[str, ...], statistics: dict[str, Any]
-) -> tuple[GbmParams, np.ndarray]:
-    """The generator override and the asset mask of the validation configuration.
+    browne: dict[str, Any],
+    columns: tuple[str, ...],
+    gbm: GbmParams,
+    *,
+    mean_shift: float = 0.0,
+) -> tuple[GbmParams, np.ndarray, BrowneParameters]:
+    """The generator override, the asset mask and the coefficients of the closed form.
 
-    One risky column keeping the mean and volatility of the frozen matrix, one riskless column
-    with zero volatility and the drift of the least volatile asset, and the rest of the universe
-    masked away so the action grid is one-dimensional.
+    Section 5 of ``docs/browne_reference.md``. The coefficients come from ``config/gbm_params.yml``
+    and not from the recorded statistics of the matrix, so that the closed form and the solver
+    describe the same market by construction: the generator samples the very log parameters the
+    mapping converts.
+
+    The two sets of numbers must not be confused, and the types keep them apart. The returned
+    :class:`GbmParams` carries **log** parameters, because that is what the generator samples. The
+    returned :class:`BrowneParameters` carries the paper's, whose ``mu`` is the drift of ``dS/S``
+    and therefore ``m + s^2/2``.
 
     Args:
-        browne: Parsed ``config/validation_browne.yml``.
+        browne: Parsed validation configuration.
         columns: Normative column order.
-        statistics: The ``statistics`` block of ``returns_matrix.json``.
+        gbm: Parameters of the generator, as fitted.
+        mean_shift: Added to the mean log return of the risky column. The third check of section 6
+            perturbs the drift this way and expects the optimal control not to follow.
 
     Returns:
-        Tuple ``(params, asset_mask)``.
+        Tuple ``(generator_params, asset_mask, closed_form_params)``.
     """
     risky, riskless = str(browne["assets"]["risky"]), str(browne["assets"]["riskless"])
     for name in (risky, riskless):
         if name not in columns:
             raise ValueError(f"{name!r} is not a column of the matrix; the header is {list(columns)}")
 
-    # Annual figures to monthly log parameters. The closed form is stated on the log scale, and
-    # the generator samples log gross returns, so the conversion happens once and here.
-    annual_mean = float(statistics[risky]["geometric_mean_annual"])
-    annual_volatility = float(statistics[risky]["std_annualised"])
-    annual_rate = float(statistics[riskless]["geometric_mean_annual"])
+    risky_index, riskless_index = columns.index(risky), columns.index(riskless)
+    log_mean = float(gbm.mu[risky_index]) + float(mean_shift)
+    log_variance = float(gbm.sigma[risky_index, risky_index])
+    riskless_rate = float(gbm.mu[riskless_index])
 
     mu = np.zeros(len(columns), dtype=np.float64)
     sigma = np.zeros((len(columns), len(columns)), dtype=np.float64)
-    mu[columns.index(risky)] = np.log1p(annual_mean) / 12.0
-    sigma[columns.index(risky), columns.index(risky)] = annual_volatility**2 / 12.0
-    mu[columns.index(riskless)] = np.log1p(annual_rate) / 12.0
+    mu[risky_index] = log_mean
+    sigma[risky_index, risky_index] = log_variance
+    mu[riskless_index] = riskless_rate
 
     mask = np.zeros(len(columns), dtype=bool)
-    mask[[columns.index(risky), columns.index(riskless)]] = True
-    return GbmParams(assets=columns, mu=mu, sigma=sigma), mask
+    mask[[risky_index, riskless_index]] = True
+    return (
+        GbmParams(assets=columns, mu=mu, sigma=sigma),
+        mask,
+        parameters_from_gbm(float(gbm.mu[risky_index]), log_variance, riskless_rate, mean_shift=mean_shift),
+    )
 
 
 def load_browne_config(path: Path | None = None) -> dict[str, Any]:
@@ -890,6 +912,7 @@ def solve_browne(
     config: SolverConfig | None = None,
     problem: ProblemConfig | None = None,
     steps_per_month: int = 1,
+    mean_shift: float = 0.0,
     progress: bool = False,
 ) -> Solution:
     """Solve the validation problem at one time step.
@@ -904,6 +927,7 @@ def solve_browne(
         config: Base discretisation, overridden by the validation one.
         problem: Base case, used only for the goal.
         steps_per_month: Steps the month is divided into.
+        mean_shift: Shift applied to the mean log return of the risky column, for the third check.
         progress: Whether to print the step being solved.
 
     Returns:
@@ -913,7 +937,7 @@ def solve_browne(
     config = config or load_solver_config()
     problem = problem or load_problem()
     columns, _ = load_matrix()
-    params, mask = browne_setup(browne, columns, load_matrix_metadata()["statistics"])
+    params, mask, _ = browne_setup(browne, columns, load_gbm_params(), mean_shift=mean_shift)
 
     refined = SolverConfig(
         **{
@@ -937,24 +961,248 @@ def solve_browne(
     )
 
 
+def comparison_set(
+    solution: Solution, closed_form: BrowneParameters, steps_per_month: int, margin: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The nodes where the paper's problem and this one are the same problem.
+
+    Section 6. At each step the state of the paper is ``z = x e^{r (T - t)}``, and the set is
+    ``z*(tau) + margin <= z < 1`` with ``tau = sigma^2 (T - t)``.
+
+    Both bounds matter, for different reasons. Below the boundary the optimal control asks for
+    leverage and the simplex forbids it, so a disagreement there is a disagreement about the
+    feasible set rather than about the solution. At or above one the bond alone reaches the goal
+    and both answers are trivially one and zero, which would inflate the agreement without testing
+    anything. The margin keeps the comparison off the boundary, where the monthly investor may
+    re-enter the borrowing region before the horizon.
+
+    Args:
+        solution: The solved tables.
+        closed_form: Coefficients of the paper.
+        steps_per_month: Steps the month is divided into.
+        margin: Distance from the boundary required of a node.
+
+    Returns:
+        Tuple ``(node_index, step_index, months_remaining)``, one entry per comparable state.
+    """
+    grid = solution.wealth_grid
+    total_steps = solution.policy.shape[1]
+    months = (total_steps - np.arange(total_steps)) / float(steps_per_month)
+    boundary = np.array([borrowing_boundary(closed_form.sigma**2 * month)[1] for month in months])
+
+    z = relative_wealth(grid[:, None], months[None, :], closed_form.r)
+    inside = (z >= boundary[None, :] + margin) & (z < 1.0)
+    node, step = np.nonzero(inside)
+    return node, step, months[step]
+
+
+def score_browne_checks(
+    solution: Solution,
+    closed_form: BrowneParameters,
+    steps_per_month: int,
+    margin: float,
+    equity_column: int,
+) -> dict[str, Any]:
+    """The value and policy checks of section 6 at one refinement pair.
+
+    Returns:
+        The two maxima, the size of the comparison set and the figures behind them.
+    """
+    node, step, months = comparison_set(solution, closed_form, steps_per_month, margin)
+    if node.size == 0:
+        return {"n_nodes": 0, "value_max_error": float("nan"), "policy_max_error": float("nan")}
+
+    wealth = solution.wealth_grid[node]
+    reference_value = browne_value(wealth, months, closed_form)
+    value_error = np.abs(solution.value[node, step] - reference_value)
+
+    reference_fraction = optimal_fraction(wealth, months, closed_form)
+    policy_error = np.abs(solution.policy[node, step, equity_column] - reference_fraction)
+
+    return {
+        "n_nodes": int(node.size),
+        "value_max_error": float(value_error.max()),
+        "value_mean_error": float(value_error.mean()),
+        "policy_max_error": float(policy_error.max()),
+        "policy_mean_error": float(policy_error.mean()),
+        "max_optimal_fraction": float(reference_fraction.max()),
+        "months_remaining_range": [float(months.min()), float(months.max())],
+    }
+
+
+DELTA_SENSITIVITY = (0.1, 0.25, 0.5, 1.0)
+"""Drift shifts, in monthly standard deviations, at which the agreement is also reported.
+
+The declared shift is the one in the configuration. This is reported beside it because the paper's
+independence result holds for the unconstrained problem, and the solver's holding is confined to
+[0, 1]: a shift large enough to push the optimal unconstrained holding through that bound changes
+the constrained problem even though it leaves the unconstrained one alone. Reporting the agreement
+as a function of the shift separates "the solver is not drift-independent" from "this shift is
+large enough that the constraint, and not the drift, is what moved."""
+
+MARGIN_SENSITIVITY = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
+"""Margins at which the two maxima are also reported, as a diagnostic and not as a threshold.
+
+The declared margin is the one in the configuration and nothing here changes it. What this adds is
+the shape of the disagreement: whether it is spread over the comparison set, which would point at
+the solver, or concentrated against the boundary, which is what section 6 predicts and would point
+at the constraint. A verdict without that shape says only that two numbers differ."""
+
+
+def margin_sensitivity(
+    solution: Solution,
+    closed_form: BrowneParameters,
+    steps_per_month: int,
+    equity_column: int,
+    margins: tuple[float, ...] = MARGIN_SENSITIVITY,
+) -> list[dict[str, Any]]:
+    """The two maxima as a function of how far the comparison set is kept from the boundary."""
+    return [
+        {"margin": float(margin), **score_browne_checks(solution, closed_form, steps_per_month, margin, equity_column)}
+        for margin in margins
+    ]
+
+
+def score_mu_independence(
+    browne: dict[str, Any],
+    *,
+    config: SolverConfig,
+    problem: ProblemConfig,
+    steps_per_month: int,
+    n_wealth: int,
+    margin: float,
+    equity_column: int,
+) -> dict[str, Any]:
+    """The third check of section 6: the optimal control must not involve the drift.
+
+    The paper observes that for a single stock the optimal control "is in fact independent of the
+    underlying drift parameter mu, as is apparent from (3.5)" (p. 557). That makes this the
+    sharpest of the three: a recursion in which the drift leaked into the policy would reproduce
+    the value function and the boundary and still fail here.
+
+    The solve is repeated with the mean log return shifted by one monthly standard deviation in
+    **both** directions, the volatility and the riskless rate held. The policy must stay within the
+    declared number of action-grid steps on the required fraction of the comparison set, while the
+    value table must move: a solver that ignored the drift entirely would pass the first half of
+    this check for the wrong reason, and the second half is what rules that out.
+    """
+    settings = browne["checks"]["mu_independence"]
+    columns, _ = load_matrix()
+    gbm = load_gbm_params()
+    _, _, base_parameters = browne_setup(browne, columns, gbm)
+    delta = float(settings["delta_in_monthly_sigma"]) * base_parameters.sigma
+    tolerance = float(settings["agreement_grid_steps"]) * config.action_step
+
+    overrides = {"n_wealth": n_wealth}
+    base = solve_browne({**browne, **overrides}, config=config, problem=problem, steps_per_month=steps_per_month)
+    node, step, _ = comparison_set(base, base_parameters, steps_per_month, margin)
+
+    perturbed: dict[str, Any] = {}
+    for label, shift in (("plus", delta), ("minus", -delta)):
+        other = solve_browne(
+            {**browne, **overrides},
+            config=config,
+            problem=problem,
+            steps_per_month=steps_per_month,
+            mean_shift=shift,
+        )
+        difference = np.abs(
+            other.policy[node, step, equity_column] - base.policy[node, step, equity_column]
+        )
+        value_shift = np.abs(other.value[node, step] - base.value[node, step])
+        _, _, shifted_parameters = browne_setup(browne, columns, gbm, mean_shift=shift)
+        perturbed[label] = {
+            "mean_log_return_shift": float(shift),
+            "mu": float(shifted_parameters.mu),
+            "premium": float(shifted_parameters.premium),
+            "satisfies_paper_assumption": bool(shifted_parameters.satisfies_paper_assumption),
+            "policy_agreement": float((difference <= tolerance + 1e-12).mean()),
+            "policy_max_difference": float(difference.max()),
+            "value_max_difference": float(value_shift.max()),
+            "value_table_moved": bool(value_shift.max() > 0.0),
+        }
+
+    # Reported beside the declared shift, never in place of it.
+    sensitivity = []
+    for multiple in DELTA_SENSITIVITY:
+        shift = multiple * base_parameters.sigma
+        agreement = []
+        for direction in (1.0, -1.0):
+            other = solve_browne(
+                {**browne, **overrides},
+                config=config,
+                problem=problem,
+                steps_per_month=steps_per_month,
+                mean_shift=direction * shift,
+            )
+            moved = np.abs(
+                other.policy[node, step, equity_column] - base.policy[node, step, equity_column]
+            )
+            agreement.append(float((moved <= tolerance + 1e-12).mean()))
+        _, _, shifted = browne_setup(browne, columns, gbm, mean_shift=shift)
+        sensitivity.append(
+            {
+                "delta_in_monthly_sigma": float(multiple),
+                "delta_as_multiple_of_premium": float(shift / base_parameters.premium),
+                "premium_at_minus": float(base_parameters.premium - shift),
+                "worst_agreement": float(min(agreement)),
+                "agreement_plus": agreement[0],
+                "agreement_minus": agreement[1],
+                "paper_assumption_holds_both_ways": bool(base_parameters.premium - shift >= 0.0)
+                and bool(shifted.satisfies_paper_assumption),
+            }
+        )
+
+    agreements = [entry["policy_agreement"] for entry in perturbed.values()]
+    moved = all(entry["value_table_moved"] for entry in perturbed.values())
+    return {
+        "delta": float(delta),
+        "delta_as_multiple_of_premium": float(delta / base_parameters.premium),
+        "delta_in_monthly_sigma": float(settings["delta_in_monthly_sigma"]),
+        "tolerance": float(tolerance),
+        "minimum_agreement": float(settings["minimum_agreement"]),
+        "n_nodes": int(node.size),
+        "perturbations": perturbed,
+        "worst_agreement": float(min(agreements)),
+        "delta_sensitivity": sensitivity,
+        "value_tables_moved": moved,
+        "passed": bool(min(agreements) >= float(settings["minimum_agreement"]) and moved),
+    }
+
+
 def run_browne_validation(
     browne: dict[str, Any] | None = None,
     *,
     directory: Path = DP_DIRECTORY,
+    checks_directory: Path = CHECKS_DIRECTORY,
     argv: list[str] | None = None,
     progress: bool = False,
 ) -> dict[str, Any]:
-    """Solve the validation problem at every declared time step and save each table.
+    """Solve at every declared refinement pair and score the three checks of section 6.
+
+    The tolerances are read from the configuration and never chosen here, which is the whole of
+    D47: a tolerance picked after seeing the error it bounds describes the error rather than
+    bounding it.
 
     Returns:
-        A summary with the value at the initial state for each step size, which is the sequence
-        the author compares against the closed form on transcribing it.
+        The document written to ``results/checks/browne_validation.json``.
     """
     browne = browne if browne is not None else load_browne_config()
     config, problem = load_solver_config(), load_problem()
+    columns, _ = load_matrix()
+    _, _, closed_form = browne_setup(browne, columns, load_gbm_params())
+    # Checks one and two read the closed form, so the coefficients must be ones it speaks about.
+    closed_form.require_paper_assumption()
+    equity_column = columns.index(str(browne["assets"]["risky"]))
+
+    settings = browne["checks"]
+    margin = float(settings["margin"])
+    value_tolerance = float(settings["value_tolerance"])
+    policy_tolerance = float(settings["policy_grid_steps"]) * float(browne["action_step"])
     initial = float(browne["initial_wealth_over_goal"])
 
-    summary: dict[str, Any] = {"initial_wealth_over_goal": initial, "levels": []}
+    levels: list[dict[str, Any]] = []
+    sensitivity: list[dict[str, Any]] = []
     for level in browne["refinement"]:
         steps, nodes = int(level["steps_per_month"]), int(level["n_wealth"])
         solution = solve_browne(
@@ -971,39 +1219,103 @@ def run_browne_validation(
             problem,
             directory=directory,
             argv=argv,
-            extra={
-                "validation": "browne",
-                "steps_per_month": steps,
-                "closed_form": "not implemented: transcribed from the paper by the author (D44)",
-            },
+            extra={"validation": "browne", "steps_per_month": steps},
         )
-        summary["levels"].append(
+        levels.append(
             {
                 "steps_per_month": steps,
                 "n_wealth": nodes,
                 "value_at_initial_state": solution.value_at(initial),
                 "seconds_elapsed": solution.seconds_elapsed,
-                "n_actions": int(solution.action_grid.shape[0]),
-                "n_quadrature_nodes": int(solution.quadrature_returns.shape[0]),
+                **score_browne_checks(solution, closed_form, steps, margin, equity_column),
             }
         )
+        if level is browne["refinement"][-1]:
+            sensitivity = margin_sensitivity(solution, closed_form, steps, equity_column)
 
-    # The sequence must settle for the comparison against the closed form to mean anything, so
-    # whether it is settling is reported rather than left for the reader to work out.
-    values = [level["value_at_initial_state"] for level in summary["levels"]]
-    differences = [second - first for first, second in zip(values, values[1:], strict=False)]
-    summary["successive_differences"] = differences
-    # Settled either because the differences are shrinking, or because they have already fallen
-    # below anything that could matter. The second case is not a failure to converge: it is what a
-    # sequence looks like once it has, and a strictly-shrinking test would call the remaining
-    # floating-point noise a divergence.
-    shrinking = len(differences) >= 2 and all(
-        abs(b) < abs(a) for a, b in zip(differences, differences[1:], strict=False)
+    value_sequence = [level["value_max_error"] for level in levels]
+    policy_sequence = [level["policy_max_error"] for level in levels]
+    finest = browne["refinement"][-1]
+    independence = score_mu_independence(
+        browne,
+        config=config,
+        problem=problem,
+        steps_per_month=int(finest["steps_per_month"]),
+        n_wealth=int(finest["n_wealth"]),
+        margin=margin,
+        equity_column=equity_column,
     )
-    settled = bool(differences) and max(abs(d) for d in differences) < SETTLED_TOLERANCE
-    summary["converging"] = bool(shrinking or settled)
-    summary["settled_within_tolerance"] = settled
-    return summary
+
+    document = {
+        "reference": "Browne (1999), transcribed in docs/browne_reference.md, verified 2026-10-10",
+        "closed_form_parameters": {
+            "r": closed_form.r,
+            "mu": closed_form.mu,
+            "sigma": closed_form.sigma,
+            "theta": closed_form.theta,
+            "note": "mu is the drift of dS/S, that is m + s^2/2 (section 5)",
+        },
+        "comparison_set": {
+            "rule": "z*(tau) + margin <= z < 1, with z = x e^{r (T - t)} and tau = sigma^2 (T - t)",
+            "margin": margin,
+            "borrowing_boundary_at_full_horizon": borrowing_boundary(
+                closed_form.sigma**2 * float(browne["horizon_months"])
+            )[1],
+        },
+        "levels": levels,
+        "value_check": {
+            "tolerance": value_tolerance,
+            "sequence": value_sequence,
+            "finest": value_sequence[-1],
+            "monotone_decrease": _is_decreasing(value_sequence),
+            "passed": bool(value_sequence[-1] < value_tolerance and _is_decreasing(value_sequence)),
+        },
+        "policy_check": {
+            "tolerance": policy_tolerance,
+            "grid_steps": int(settings["policy_grid_steps"]),
+            "sequence": policy_sequence,
+            "finest": policy_sequence[-1],
+            "monotone_decrease": _is_decreasing(policy_sequence),
+            "passed": bool(policy_sequence[-1] < policy_tolerance and _is_decreasing(policy_sequence)),
+        },
+        "mu_independence_check": independence,
+        "margin_sensitivity": {
+            "note": (
+                "diagnostic, not a threshold: the declared margin is the one above. Reported so "
+                "that a disagreement concentrated against the borrowing boundary, which section 6 "
+                "predicts because future paths re-enter the borrowing region, can be told apart "
+                "from one spread over the comparison set, which would point at the solver."
+            ),
+            "at_finest_pair": sensitivity,
+        },
+        "theorem_7_1": "not run: P1 only, behind --theorem-71 and the configuration flag (D72)",
+        "status": "preliminary until the figures freeze",
+    }
+    document["all_passed"] = bool(
+        document["value_check"]["passed"]
+        and document["policy_check"]["passed"]
+        and document["mu_independence_check"]["passed"]
+    )
+
+    checks_directory.mkdir(parents=True, exist_ok=True)
+    path = checks_directory / "browne_validation.json"
+    payload = {
+        **document,
+        "command_line": argv if argv is not None else sys.argv,
+        "written_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        "git_commit": git_commit(),
+        "environment_fingerprint": collect_fingerprint(),
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=float) + "\n", encoding="utf-8")
+    document["path"] = path
+    return document
+
+
+def _is_decreasing(sequence: list[float]) -> bool:
+    """Whether every term of a sequence is strictly smaller than the one before it."""
+    return len(sequence) >= 2 and all(
+        second < first for first, second in zip(sequence, sequence[1:], strict=False)
+    )
 
 
 # ======================================================================================
@@ -1022,38 +1334,67 @@ def _require_parametric(name: str) -> None:
 
 
 def _print_browne(argv: list[str], *, progress: bool = False) -> int:
-    """Build the validation tables and say plainly what has and has not been checked."""
+    """Run the validation and report the three verdicts of section 6."""
     browne = load_browne_config()
-    summary = run_browne_validation(browne, argv=argv, progress=progress)
+    document = run_browne_validation(browne, argv=argv, progress=progress)
+    parameters = document["closed_form_parameters"]
+    comparison = document["comparison_set"]
+
     print(
-        f"validation configuration (D44): {browne['assets']['risky']} against "
-        f"{browne['assets']['riskless']} at zero volatility,\n"
-        f"objective {browne['objective']}, no contributions, no costs, "
-        f"W_0 = {summary['initial_wealth_over_goal']:.2f} of the goal\n"
+        f"validation against Browne (1999), {browne['assets']['risky']} against "
+        f"{browne['assets']['riskless']} at zero volatility\n"
+        f"objective {browne['objective']}, no contributions, no costs\n"
     )
-    header = f"{'steps/month':>12} {'steps':>7} {'nodes':>7} {'actions':>8} {'V(W_0)':>11} {'diff':>11} {'seconds':>8}"
+    print(
+        f"closed form   r {parameters['r']:.6f}   mu {parameters['mu']:.6f} (= m + s^2/2)   "
+        f"sigma {parameters['sigma']:.6f}   theta {parameters['theta']:.6f}"
+    )
+    print(
+        f"comparison    z*(tau) + {comparison['margin']} <= z < 1; the boundary at the full "
+        f"horizon is z* = {comparison['borrowing_boundary_at_full_horizon']:.4f}\n"
+    )
+
+    header = f"{'steps/mo':>9} {'nodes':>7} {'compared':>10} {'|dV| max':>11} {'|dw| max':>11} {'seconds':>8}"
     print(header)
     print("-" * len(header))
-    for index, entry in enumerate(summary["levels"]):
-        difference = "" if index == 0 else f"{summary['successive_differences'][index - 1]:+11.2e}"
+    for level in document["levels"]:
         print(
-            f"{entry['steps_per_month']:>12} "
-            f"{entry['steps_per_month'] * int(browne['horizon_months']):>7} "
-            f"{entry['n_wealth']:>7} {entry['n_actions']:>8} "
-            f"{entry['value_at_initial_state']:>11.6f} {difference:>11} {entry['seconds_elapsed']:>8.1f}"
+            f"{level['steps_per_month']:>9} {level['n_wealth']:>7} {level['n_nodes']:>10,} "
+            f"{level['value_max_error']:>11.5f} {level['policy_max_error']:>11.5f} "
+            f"{level['seconds_elapsed']:>8.1f}"
         )
-    print(
-        f"\nthe sequence is {'settling' if summary['converging'] else 'NOT settling'}: the successive "
-        "differences must shrink for the\ncomparison against the closed form to mean anything. The wealth grid is "
-        "refined with the\ntime step because under the indicator objective the terminal value is a step function, "
-        "and\nrefining time alone accumulates interpolation error faster than it removes time error."
+
+    value, policy, independence = (
+        document["value_check"],
+        document["policy_check"],
+        document["mu_independence_check"],
     )
     print(
-        "\nTables only. The closed-form value and policy of Browne (1999) are NOT implemented and\n"
-        "must not be written from memory: the author transcribes them from the paper, and the error\n"
-        "against them must fall as the step shrinks. Nothing above has been validated yet."
+        f"\n1 value          {'PASS' if value['passed'] else 'FAIL'}  max {value['finest']:.5f} "
+        f"against {value['tolerance']}, decreasing {value['monotone_decrease']}"
     )
-    return 0
+    print(
+        f"2 policy         {'PASS' if policy['passed'] else 'FAIL'}  max {policy['finest']:.5f} "
+        f"against {policy['tolerance']:.2f} ({policy['grid_steps']} grid steps), "
+        f"decreasing {policy['monotone_decrease']}"
+    )
+    print(
+        f"3 mu-independent {'PASS' if independence['passed'] else 'FAIL'}  agreement "
+        f"{independence['worst_agreement']:.4f} against {independence['minimum_agreement']} "
+        f"within {independence['tolerance']:.2f}, value tables moved "
+        f"{independence['value_tables_moved']}"
+    )
+    for label, entry in independence["perturbations"].items():
+        print(
+            f"                   m {label:5} {entry['mean_log_return_shift']:+.5f}: agreement "
+            f"{entry['policy_agreement']:.4f}, policy moves at most "
+            f"{entry['policy_max_difference']:.4f}, value by {entry['value_max_difference']:.5f}"
+        )
+
+    print(f"\nwrote {document['path']}")
+    print("Theorem 7.1 not run: P1 only, behind --theorem-71 and the configuration flag (D72).")
+    print("PRELIMINARY: not frozen until the figures freeze.")
+    return 0 if document["all_passed"] else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1061,7 +1402,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="A_gbm", help="configuration of the frozen recipe, e.g. A_gbm")
     parser.add_argument("--stability", action="store_true", help="also run the two internal checks")
     parser.add_argument(
-        "--browne", action="store_true", help="solve the validation configuration of D44 instead"
+        "--browne", action="store_true", help="run the validation of D44 against the closed form"
+    )
+    parser.add_argument(
+        "--theorem-71",
+        action="store_true",
+        help="also score Theorem 7.1, the income case; P1 only, and the configuration must enable it",
     )
     parser.add_argument("--seed", type=int, default=None, help="unused: the induction is deterministic")
     parser.add_argument("--progress", action="store_true", help="print the month being solved")
@@ -1070,7 +1416,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.seed is not None:
             raise ValueError("--seed is not accepted: backward induction draws no random numbers")
+        if args.theorem_71 and not args.browne:
+            raise ValueError("--theorem-71 extends --browne and cannot be run on its own")
         if args.browne:
+            if args.theorem_71 and not load_browne_config()["theorem_7_1"]["enabled"]:
+                raise ValueError(
+                    "Theorem 7.1 is disabled in config/validation_browne.yml. It is P1 rather than "
+                    "part of the validation (D72), so both the flag and the configuration must "
+                    "agree before an unrequested figure reaches the results."
+                )
             return _print_browne(argv if argv is not None else sys.argv, progress=args.progress)
         _require_parametric(args.config)
         config = load_solver_config()

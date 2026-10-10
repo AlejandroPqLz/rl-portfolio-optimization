@@ -14,8 +14,10 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+from portfolio_manager.browne import borrowing_boundary, optimal_fraction, relative_wealth
 from portfolio_manager.dp_solver import (
     browne_setup,
+    comparison_set,
     load_browne_config,
     run_browne_validation,
     scale_params,
@@ -34,7 +36,7 @@ from portfolio_manager.evaluate import (
     table_policy,
     trained_policies,
 )
-from portfolio_manager.generator import GbmParams, generate, load_matrix, load_matrix_metadata
+from portfolio_manager.generator import GbmParams, generate, load_gbm_params, load_matrix
 
 # Constants
 # =====================================================================
@@ -356,7 +358,7 @@ def test_the_validation_universe_is_two_columns():
     """Equity against one riskless column, the rest masked away (D44)."""
     browne = load_browne_config()
     columns, _ = load_matrix()
-    params, mask = browne_setup(browne, columns, load_matrix_metadata()["statistics"])
+    _, mask, _ = browne_setup(browne, columns, load_gbm_params())
     assert mask.sum() == 2
     assert mask[columns.index(browne["assets"]["risky"])]
     assert mask[columns.index(browne["assets"]["riskless"])]
@@ -366,12 +368,42 @@ def test_the_riskless_column_has_no_volatility():
     """Which is what makes the comparison against a one-risky-asset closed form legitimate."""
     browne = load_browne_config()
     columns, _ = load_matrix()
-    params, _ = browne_setup(browne, columns, load_matrix_metadata()["statistics"])
+    params, _, _ = browne_setup(browne, columns, load_gbm_params())
     riskless = columns.index(browne["assets"]["riskless"])
     assert params.sigma[riskless, riskless] == 0.0
     assert params.mu[riskless] > 0.0
     # One non-degenerate factor, so the tensor product is over one axis and not four.
     assert int((np.abs(params.factor()).sum(axis=0) > 0).sum()) == 1
+
+
+def test_the_generator_and_the_closed_form_share_their_coefficients():
+    """Section 5. The solver samples the log parameters the mapping converts, so the two describe
+    one market rather than two readings of the data that happen to agree."""
+    browne = load_browne_config()
+    columns, _ = load_matrix()
+    gbm = load_gbm_params()
+    generator, _, closed_form = browne_setup(browne, columns, gbm)
+    risky = columns.index(browne["assets"]["risky"])
+
+    assert generator.mu[risky] == gbm.mu[risky], "the generator keeps the LOG drift"
+    assert closed_form.sigma == pytest.approx(np.sqrt(generator.sigma[risky, risky]))
+    # The paper's mu is the drift of dS/S, so it is the log drift plus half the variance.
+    assert closed_form.mu == pytest.approx(generator.mu[risky] + generator.sigma[risky, risky] / 2.0)
+
+
+def test_a_drift_shift_moves_the_generator_and_the_closed_form_together():
+    """The third check perturbs the drift; both descriptions of the market must follow it."""
+    browne = load_browne_config()
+    columns, _ = load_matrix()
+    gbm = load_gbm_params()
+    risky = columns.index(browne["assets"]["risky"])
+    base_generator, _, base_closed = browne_setup(browne, columns, gbm)
+    shifted_generator, _, shifted_closed = browne_setup(browne, columns, gbm, mean_shift=0.01)
+
+    assert shifted_generator.mu[risky] == pytest.approx(base_generator.mu[risky] + 0.01)
+    assert shifted_closed.mu == pytest.approx(base_closed.mu + 0.01)
+    assert shifted_closed.sigma == base_closed.sigma
+    assert shifted_closed.r == base_closed.r
 
 
 def test_the_validation_objective_is_the_indicator():
@@ -399,7 +431,6 @@ def test_the_validation_action_grid_is_one_dimensional():
     solution = solve_browne({**browne, "n_wealth": 101, "horizon_months": 2}, steps_per_month=1)
     assert solution.action_grid.shape[0] == 101
     assert solution.quadrature_returns.shape[0] == browne["n_quad"]
-    # The masked columns are never held.
     columns, _ = load_matrix()
     for name in ("ust10y", "gold"):
         assert solution.policy[:, :, columns.index(name)].max() == 0.0
@@ -415,42 +446,72 @@ def test_the_validation_value_is_a_probability():
     assert solution.value_at(1.5, 0) == pytest.approx(1.0, abs=1e-6), "already past the goal"
 
 
-def test_the_refinement_sequence_settles(tmp_path):
-    """The requirement the memoir states: the error must fall as the step does.
+@pytest.mark.slow
+def test_the_validation_scores_the_three_checks(tmp_path):
+    """The runner produces the three verdicts of section 6 with their maxima and sequences.
 
-    Without the closed form the error cannot be measured, so what is checked is the necessary
-    condition, that the sequence of values converges. The wealth grid is refined with the time
-    step; under the indicator objective the terminal value is a step function and refining time
-    alone accumulates interpolation error faster than it removes time error.
+    Run at a reduced refinement: the structure of the report is what is checked here, and the
+    figures of the declared pairs are what the command line produces and the memoir quotes.
     """
     browne = load_browne_config()
-    # The declared horizon at reduced resolution. A short horizon will not do: with no
-    # contributions and half the goal in hand, twelve months makes the value about 8e-05 and the
-    # sequence is then pure floating-point noise, which tests nothing.
     reduced = {
         **browne,
         "refinement": [
             {"steps_per_month": 1, "n_wealth": 401},
             {"steps_per_month": 2, "n_wealth": 801},
-            {"steps_per_month": 4, "n_wealth": 1601},
         ],
     }
-    summary = run_browne_validation(reduced, directory=tmp_path, argv=["test"])
-    assert len(summary["levels"]) == 3
-    assert summary["converging"], summary["successive_differences"]
-    differences = summary["successive_differences"]
-    assert abs(differences[-1]) < abs(differences[0]), differences
+    document = run_browne_validation(reduced, directory=tmp_path, checks_directory=tmp_path, argv=["test"])
+
+    assert len(document["levels"]) == 2
+    for level in document["levels"]:
+        assert level["n_nodes"] > 0, "the comparison set must not be empty"
+        assert level["value_max_error"] >= 0.0
+        assert level["policy_max_error"] >= 0.0
+
+    for check in ("value_check", "policy_check"):
+        assert set(document[check]) >= {"tolerance", "sequence", "finest", "monotone_decrease", "passed"}
+        assert len(document[check]["sequence"]) == 2
+
+    independence = document["mu_independence_check"]
+    assert set(independence["perturbations"]) == {"plus", "minus"}, "both directions, as asked"
+    assert independence["delta"] == pytest.approx(
+        float(browne["checks"]["mu_independence"]["delta_in_monthly_sigma"]) * 0.04442, abs=1e-4
+    )
+    assert (tmp_path / "browne_validation.json").is_file()
 
 
-def test_the_validation_tables_say_they_are_not_validated(tmp_path):
-    """The closed form is transcribed from the paper by the author, never written from memory."""
+@pytest.mark.slow
+def test_the_comparison_set_is_the_no_borrowing_region(tmp_path):
+    """Every compared node must lie inside the region where the two problems are the same one.
+
+    Below the boundary the paper's control asks for leverage and the simplex forbids it; at or
+    above the discounted goal both answers are trivially one and zero. Comparing either would
+    measure the feasible set rather than the solution.
+    """
     browne = load_browne_config()
-    reduced = {**browne, "horizon_months": 2, "refinement": [{"steps_per_month": 1, "n_wealth": 101}]}
-    run_browne_validation(reduced, directory=tmp_path, argv=["test"])
-    sidecar = json.loads((tmp_path / "browne_1_per_month.json").read_text(encoding="utf-8"))
-    assert sidecar["validation"] == "browne"
-    assert "not implemented" in sidecar["closed_form"]
-    assert sidecar["solver"]["objective"] == "indicator"
+    columns, _ = load_matrix()
+    _, _, closed_form = browne_setup(browne, columns, load_gbm_params())
+    solution = solve_browne({**browne, "n_wealth": 401}, steps_per_month=1)
+    margin = float(browne["checks"]["margin"])
+
+    node, step, months = comparison_set(solution, closed_form, 1, margin)
+    assert node.size > 0
+    z = relative_wealth(solution.wealth_grid[node], months, closed_form.r)
+    boundary = np.array([borrowing_boundary(closed_form.sigma**2 * month)[1] for month in months])
+    assert np.all(z >= boundary + margin - 1e-12)
+    assert np.all(z < 1.0)
+    # Inside it the paper's own control asks for no leverage, which is the point of the region.
+    assert optimal_fraction(solution.wealth_grid[node], months, closed_form).max() <= 1.0 + 1e-9
+
+
+def test_theorem_7_1_needs_both_the_flag_and_the_configuration():
+    """P1 rather than part of the validation (D72), so neither alone puts it into the results."""
+    from portfolio_manager.dp_solver import main
+
+    assert load_browne_config()["theorem_7_1"]["enabled"] is False
+    assert main(["--browne", "--theorem-71"]) == 1
+    assert main(["--theorem-71"]) == 1
 
 
 # ======================================================================================

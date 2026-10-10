@@ -54,6 +54,24 @@ meta:
       - "closed-form optimal amount in the risky asset"
       - "boundary of the region where that amount exceeds wealth (no-leverage region)"
 
+# --- Where the coefficients come from ----------------------------------------
+# Section 5 of docs/browne_reference.md. The paper's three coefficients are read
+# from the parameters of the generator itself, so the closed form and the solver
+# describe the same market by construction rather than by two readings of the
+# data that happen to agree.
+#
+#   sigma = s          monthly volatility of the log return of the risky column
+#   r     = r          monthly log return of the zero-volatility column
+#   mu    = m + s^2/2  NOT m
+#
+# The last line is the step that is easy to get wrong and silent when it is. The
+# paper's mu is the drift of dS/S (4.1); its own solution
+# S_t = S_0 exp{(mu - s^2/2) t + s W_t} (p. 559) gives the log return a mean of
+# mu - s^2/2, so recovering mu from m adds half the variance back. For monthly
+# equity that is 9.9e-04 against a premium of 6.6e-03: about a seventh of it,
+# far too small to look wrong in a figure and far too large to leave out.
+parameter_source: config/gbm_params.yml
+
 # --- The universe ------------------------------------------------------------
 # Two columns of the four. The remaining two are masked out, so the action grid
 # is one-dimensional: the weight in equity, and the rest riskless.
@@ -129,3 +147,67 @@ refinement:
   - {steps_per_month: 1, n_wealth: 801}
   - {steps_per_month: 2, n_wealth: 1601}
   - {steps_per_month: 4, n_wealth: 3201}
+
+# --- The three checks and their tolerances (D44 as reduced by D72) ------------
+# WRITTEN BEFORE THE FIRST RUN, which is the whole of D47: a tolerance chosen
+# after seeing the error it is meant to bound is not a tolerance, it is a
+# description of the error. These figures are the suggestions of section 6 of
+# docs/browne_reference.md, adopted unchanged.
+#
+# THE COMPARISON SET, common to all three checks. At each step the paper's state
+# is z = x e^{r (T - t)}, wealth against the goal discounted to the present. The
+# comparison runs over the nodes with
+#
+#     z*(tau) + margin  <=  z  <  1,      tau = s^2 (T - t)
+#
+# Both bounds are needed and for different reasons. Below z*(tau) the optimal
+# control asks for leverage, which the simplex forbids, so the two are solving
+# different problems there. At or above one the bond alone reaches the goal and
+# both answers are trivially V = 1 and w = 0, which would flatter the agreement
+# without testing anything. The margin keeps the comparison off the boundary
+# itself: near it the monthly investor may re-enter the borrowing region before
+# the horizon, so the agreement is approximate for a reason that is about the
+# problem and not about the solver.
+checks:
+  margin: 0.05
+
+  # 1. Value. max over steps and nodes of |V_DP - V| with V from section 2.
+  #    Absolute, in probability units. The paper's investor trades continuously
+  #    and without constraint, this one monthly and on the simplex, so an exact
+  #    match is not expected at any resolution; what is required is that the gap
+  #    falls as the discretisation refines and is below this at the finest pair.
+  value_tolerance: 0.02
+
+  # 2. Policy. max |w_DP - w*| with w* from section 3, in action-grid steps so
+  #    that the figure tracks action_step instead of being restated beside it.
+  #    Two steps is 0.02 at the declared grid.
+  policy_grid_steps: 2
+
+  # 3. Independence from the drift. The paper observes that for a single stock
+  #    the optimal control does not involve mu at all (p. 557, equation 3.5),
+  #    which is the sharpest available test of the solver: a recursion that had
+  #    the drift entering the policy by mistake would pass the first two checks
+  #    and fail this one. The solve is repeated with m shifted BOTH ways, the
+  #    volatility and the rate held, and the policy must stay put while the value
+  #    table moves. Exact independence holds in continuous time only, so the
+  #    requirement is a fraction of nodes rather than all of them.
+  mu_independence:
+    delta_in_monthly_sigma: 1.0   # the shift, in units of s
+    agreement_grid_steps: 1
+    minimum_agreement: 0.95
+    refinement: finest             # scored at the finest pair of the sequence
+
+# --- Theorem 7.1, exogenous income -------------------------------------------
+# Section 7, and P1 rather than part of the validation: D72 reduced D44 to the
+# three checks above and moved the income case out. The closed forms are
+# implemented and unit tested; the runner reaches them only when this is true
+# AND --theorem-71 is passed, so neither alone is enough to put an unrequested
+# figure into the results.
+#
+# The mapping is declared here because it is approximate and must be read as
+# such: the paper's income is a continuous flow at rate l and the solver's
+# contribution is a lump sum at the end of each month, so agreement is bounded
+# by that discretisation before anything else.
+theorem_7_1:
+  enabled: false
+  income_per_month: 400

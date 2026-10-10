@@ -1,0 +1,258 @@
+{
+  "all_passed": false,
+  "closed_form_parameters": {
+    "mu": 0.009460469960160183,
+    "note": "mu is the drift of dS/S, that is m + s^2/2 (section 5)",
+    "r": 0.0028336164812801387,
+    "sigma": 0.044420714980801544,
+    "theta": 0.14918385446393972
+  },
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/dp_solver.py",
+    "--browne"
+  ],
+  "comparison_set": {
+    "borrowing_boundary_at_full_horizon": 0.7069240409219324,
+    "margin": 0.05,
+    "rule": "z*(tau) + margin <= z < 1, with z = x e^{r (T - t)} and tau = sigma^2 (T - t)"
+  },
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 6,
+    "torch_version": "2.13.0"
+  },
+  "git_commit": "0ff5238cc128a51988ef80fc8ba70547013ba0d0",
+  "levels": [
+    {
+      "max_optimal_fraction": 0.8445356573163775,
+      "months_remaining_range": [
+        7.0,
+        120.0
+      ],
+      "n_nodes": 2647,
+      "n_wealth": 801,
+      "policy_max_error": 0.299732061852023,
+      "policy_mean_error": 0.1268524614567321,
+      "seconds_elapsed": 0.1577623329940252,
+      "steps_per_month": 1,
+      "value_at_initial_state": 0.868328867244841,
+      "value_max_error": 0.14383206630186185,
+      "value_mean_error": 0.051066416014671004
+    },
+    {
+      "max_optimal_fraction": 0.8495455225801762,
+      "months_remaining_range": [
+        6.5,
+        120.0
+      ],
+      "n_nodes": 10541,
+      "n_wealth": 1601,
+      "policy_max_error": 0.2935251645452342,
+      "policy_mean_error": 0.0978817512158475,
+      "seconds_elapsed": 0.6140110830310732,
+      "steps_per_month": 2,
+      "value_at_initial_state": 0.8742140497000903,
+      "value_max_error": 0.12735100042390812,
+      "value_mean_error": 0.04450840948949032
+    },
+    {
+      "max_optimal_fraction": 0.8498295077996116,
+      "months_remaining_range": [
+        6.25,
+        120.0
+      ],
+      "n_nodes": 42082,
+      "n_wealth": 3201,
+      "policy_max_error": 0.2323095893958349,
+      "policy_mean_error": 0.07644170280703996,
+      "seconds_elapsed": 2.5119675419991836,
+      "steps_per_month": 4,
+      "value_at_initial_state": 0.8781638310196233,
+      "value_max_error": 0.11786772970576931,
+      "value_mean_error": 0.04020804853073242
+    }
+  ],
+  "margin_sensitivity": {
+    "at_finest_pair": [
+      {
+        "margin": 0.05,
+        "max_optimal_fraction": 0.8498295077996116,
+        "months_remaining_range": [
+          6.25,
+          120.0
+        ],
+        "n_nodes": 42082,
+        "policy_max_error": 0.2323095893958349,
+        "policy_mean_error": 0.07644170280703996,
+        "value_max_error": 0.11786772970576931,
+        "value_mean_error": 0.04020804853073242
+      },
+      {
+        "margin": 0.1,
+        "max_optimal_fraction": 0.6975114690277877,
+        "months_remaining_range": [
+          19.75,
+          120.0
+        ],
+        "n_nodes": 27697,
+        "policy_max_error": 0.12757096886970562,
+        "policy_mean_error": 0.07144780791557986,
+        "value_max_error": 0.05831240389731662,
+        "value_mean_error": 0.023336197183288637
+      },
+      {
+        "margin": 0.15,
+        "max_optimal_fraction": 0.5413044023612794,
+        "months_remaining_range": [
+          38.5,
+          120.0
+        ],
+        "n_nodes": 15744,
+        "policy_max_error": 0.12757096886970562,
+        "policy_mean_error": 0.07211317067509086,
+        "value_max_error": 0.029233297565408267,
+        "value_mean_error": 0.012767276776258888
+      },
+      {
+        "margin": 0.2,
+        "max_optimal_fraction": 0.37623957126169466,
+        "months_remaining_range": [
+          62.5,
+          120.0
+        ],
+        "n_nodes": 6860,
+        "policy_max_error": 0.12757096886970562,
+        "policy_mean_error": 0.07755706815128341,
+        "value_max_error": 0.014229709892288334,
+        "value_mean_error": 0.0064165423083083345
+      },
+      {
+        "margin": 0.25,
+        "max_optimal_fraction": 0.1956215211006391,
+        "months_remaining_range": [
+          91.5,
+          120.0
+        ],
+        "n_nodes": 1509,
+        "policy_max_error": 0.12757096886970562,
+        "policy_mean_error": 0.09028066268176257,
+        "value_max_error": 0.0053830697586608744,
+        "value_mean_error": 0.0028331215679365594
+      },
+      {
+        "margin": 0.3,
+        "n_nodes": 0,
+        "policy_max_error": NaN,
+        "value_max_error": NaN
+      }
+    ],
+    "note": "diagnostic, not a threshold: the declared margin is the one above. Reported so that a disagreement concentrated against the borrowing boundary, which section 6 predicts because future paths re-enter the borrowing region, can be told apart from one spread over the comparison set, which would point at the solver."
+  },
+  "mu_independence_check": {
+    "delta": 0.044420714980801544,
+    "delta_as_multiple_of_premium": 6.703138242360651,
+    "delta_in_monthly_sigma": 1.0,
+    "delta_sensitivity": [
+      {
+        "agreement_minus": 0.16032983223230834,
+        "agreement_plus": 0.5714794924195619,
+        "delta_as_multiple_of_premium": 0.6703138242360651,
+        "delta_in_monthly_sigma": 0.1,
+        "paper_assumption_holds_both_ways": true,
+        "premium_at_minus": 0.0021847819807998894,
+        "worst_agreement": 0.16032983223230834
+      },
+      {
+        "agreement_minus": 0.003231785561522741,
+        "agreement_plus": 0.43671878712988926,
+        "delta_as_multiple_of_premium": 1.6757845605901627,
+        "delta_in_monthly_sigma": 0.25,
+        "paper_assumption_holds_both_ways": false,
+        "premium_at_minus": -0.004478325266320342,
+        "worst_agreement": 0.003231785561522741
+      },
+      {
+        "agreement_minus": 4.752625825768737e-05,
+        "agreement_plus": 0.1260871631576446,
+        "delta_as_multiple_of_premium": 3.3515691211803254,
+        "delta_in_monthly_sigma": 0.5,
+        "paper_assumption_holds_both_ways": false,
+        "premium_at_minus": -0.015583504011520727,
+        "worst_agreement": 4.752625825768737e-05
+      },
+      {
+        "agreement_minus": 0.0,
+        "agreement_plus": 0.013592509861698588,
+        "delta_as_multiple_of_premium": 6.703138242360651,
+        "delta_in_monthly_sigma": 1.0,
+        "paper_assumption_holds_both_ways": false,
+        "premium_at_minus": -0.0377938615019215,
+        "worst_agreement": 0.0
+      }
+    ],
+    "minimum_agreement": 0.95,
+    "n_nodes": 42082,
+    "passed": false,
+    "perturbations": {
+      "minus": {
+        "mean_log_return_shift": -0.044420714980801544,
+        "mu": -0.034960245020641365,
+        "policy_agreement": 0.0,
+        "policy_max_difference": 0.9,
+        "premium": -0.0377938615019215,
+        "satisfies_paper_assumption": false,
+        "value_max_difference": 0.9712418292638622,
+        "value_table_moved": true
+      },
+      "plus": {
+        "mean_log_return_shift": 0.044420714980801544,
+        "mu": 0.053881184940961724,
+        "policy_agreement": 0.013592509861698588,
+        "policy_max_difference": 0.9,
+        "premium": 0.051047568459681586,
+        "satisfies_paper_assumption": true,
+        "value_max_difference": 0.131055138778724,
+        "value_table_moved": true
+      }
+    },
+    "tolerance": 0.05,
+    "value_tables_moved": true,
+    "worst_agreement": 0.0
+  },
+  "policy_check": {
+    "finest": 0.2323095893958349,
+    "grid_steps": 2,
+    "monotone_decrease": true,
+    "passed": false,
+    "sequence": [
+      0.299732061852023,
+      0.2935251645452342,
+      0.2323095893958349
+    ],
+    "tolerance": 0.02
+  },
+  "reference": "Browne (1999), transcribed in docs/browne_reference.md, verified 2026-10-10",
+  "status": "preliminary until the figures freeze",
+  "theorem_7_1": "not run: P1 only, behind --theorem-71 and the configuration flag (D72)",
+  "value_check": {
+    "finest": 0.11786772970576931,
+    "monotone_decrease": true,
+    "passed": false,
+    "sequence": [
+      0.14383206630186185,
+      0.12735100042390812,
+      0.11786772970576931
+    ],
+    "tolerance": 0.02
+  },
+  "written_at_utc": "2026-10-10T19:42:05+00:00"
+}

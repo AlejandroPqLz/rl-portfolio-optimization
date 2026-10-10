@@ -1,11 +1,10 @@
 {
-  "closed_form": "not implemented: transcribed from the paper by the author (D44)",
   "command_line": [
     "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/dp_solver.py",
     "--browne"
   ],
   "configuration": "browne_2_per_month",
-  "degenerate_state_fraction": 0.8058661253383302,
+  "degenerate_state_fraction": 0.8055746408494691,
   "environment_fingerprint": {
     "blas_backend": "accelerate",
     "device": "cpu",
@@ -20,8 +19,8 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
-  "git_commit": "b28041a2c5e01c7878085e6dff0041a95fef2e7d",
-  "max_wealth_reached_over_goal": 4.39166848243163,
+  "git_commit": "0ff5238cc128a51988ef80fc8ba70547013ba0d0",
+  "max_wealth_reached_over_goal": 4.394128700630302,
   "problem": {
     "goal_usd": 60000.0,
     "horizon_months": 120,
@@ -29,13 +28,13 @@
     "monthly_contribution_usd": 400.0
   },
   "result_file": "results/dp/browne_2_per_month.npz",
-  "seconds_elapsed": 0.6426165000302717,
+  "seconds_elapsed": 0.6140110830310732,
   "solver": {
     "action_step": 0.05,
     "cost_bp": 0.0,
     "interpolation": "linear",
     "n_actions": 101,
-    "n_quad": 5,
+    "n_quad": 7,
     "n_quadrature_nodes": 5,
     "n_wealth": 1601,
     "objective": "indicator",
@@ -49,5 +48,5 @@
   "value_at_initial_state": 0.0,
   "value_at_upper_bound": 1.0,
   "value_flat_near_upper_bound": true,
-  "written_at_utc": "2026-10-04T20:28:40+00:00"
+  "written_at_utc": "2026-10-10T19:41:33+00:00"
 }
