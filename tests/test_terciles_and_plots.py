@@ -121,12 +121,33 @@ def test_the_paired_test_runs_inside_each_third(scenarios, problem):
         problem=problem,
     )
     paired = document["paired"]
-    assert paired["agent"] == "agent_fake"
     assert paired["reference"] == "glide_path"
+    assert list(paired["agents"]) == ["agent_fake"], "every agent is tested, not only the first"
     for name in document["tercile_names"]:
-        entry = paired["terciles"][name]
+        entry = paired["agents"]["agent_fake"]["terciles"][name]
         assert 0.0 <= entry["p_value"] <= 1.0
         assert entry["n_scenarios"] > 0
+
+
+def test_every_seed_is_paired_not_only_the_first(scenarios, problem):
+    """Five seeds are trained and the spread across them is part of the result (D70).
+
+    Testing whichever agent happened to come first would report one seed's advantage as the
+    agent's, and the thesis quotes the third hypothesis per seed.
+    """
+    document = terciles(
+        {
+            "agent_seed_0": _constant([0.6, 0.2, 0.2, 0.0]),
+            "agent_seed_1": _constant([0.7, 0.1, 0.2, 0.0]),
+            "agent_seed_2": _constant([0.4, 0.3, 0.3, 0.0]),
+            "glide_path": _constant([0.5, 0.25, 0.25, 0.0]),
+        },
+        scenarios,
+        problem=problem,
+    )
+    assert list(document["paired"]["agents"]) == ["agent_seed_0", "agent_seed_1", "agent_seed_2"]
+    for entry in document["paired"]["agents"].values():
+        assert set(entry["terciles"]) == set(document["tercile_names"])
 
 
 def test_scenarios_landing_in_different_thirds_are_dropped_and_counted(scenarios, problem):
@@ -143,13 +164,11 @@ def test_scenarios_landing_in_different_thirds_are_dropped_and_counted(scenarios
         scenarios,
         problem=problem,
     )
-    dropped = [
-        document["paired"]["terciles"][name]["scenarios_in_exactly_one_tercile"]
-        for name in document["tercile_names"]
-    ]
+    per_tercile = document["paired"]["agents"]["agent_fake"]["terciles"]
+    dropped = [per_tercile[name]["scenarios_in_exactly_one_tercile"] for name in document["tercile_names"]]
     assert sum(dropped) > 0, "two very different policies must disagree about some buckets"
     for name in document["tercile_names"]:
-        entry = document["paired"]["terciles"][name]
+        entry = per_tercile[name]
         assert entry["n_scenarios"] + entry["scenarios_in_exactly_one_tercile"] > 0
 
 
@@ -161,7 +180,9 @@ def test_the_paired_test_is_skipped_without_an_agent(scenarios, problem):
 
 def test_the_tercile_run_writes_its_document_and_side_car(tmp_path):
     """Everything the memoir quotes has a file and a side-car behind it."""
-    document, path = run_terciles(CONFIG, 0.0, which="baselines", argv=["test"], results_directory=tmp_path)
+    document, path, _ = run_terciles(
+        CONFIG, 0.0, which="baselines", argv=["test"], results_directory=tmp_path
+    )
     assert path.name == f"terciles_{CONFIG}_0bp.json"
     stored = json.loads(path.read_text(encoding="utf-8"))
     assert stored["test_set"] == CONFIG
@@ -244,7 +265,7 @@ def test_the_equity_map_reads_the_first_column():
 
 def test_the_policy_map_is_written_and_masks_the_degenerate_region(tmp_path):
     """Degenerate states must be blank, or the figure shows the tie-break as if it were the optimum."""
-    path = plot_policy_maps(CONFIG, directory=tmp_path)
+    path = plot_policy_maps(CONFIG, directory=tmp_path, train_cost_bp=0.0)
     assert path.is_file() and path.stat().st_size > 0
 
 

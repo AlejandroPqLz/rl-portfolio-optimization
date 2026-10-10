@@ -143,11 +143,17 @@ def plot_policy_maps(
     configuration: str,
     *,
     seed: str = "seed_0",
+    train_cost_bp: float,
     directory: Path = FIGURES_DIRECTORY,
     dp_directory: Path = DP_DIRECTORY,
     runs: Path = RUNS_DIRECTORY,
 ) -> Path:
     """The tabulated optimum against the agent, over the wealth and time-remaining plane.
+
+    ``train_cost_bp`` names the cost the plotted agent was trained under and is required for the
+    same reason it is in ``evaluate.py``: reading it from ``config/problem.yml`` would quietly
+    plot a different agent than the caller asked for, which is the defect that produced a table
+    of ten-basis-point agents under a file named for zero.
 
     Degenerate states are left blank. Most of the plane has several optimal portfolios, and there
     the table shows whichever one the tie-break selected; colouring them would put a confident
@@ -162,10 +168,9 @@ def plot_policy_maps(
     horizon = tabulated.shape[1]
     extent = (0.0, 1.0, float(grid[0]), float(grid[-1]))
 
-    from portfolio_manager.env import load_problem
-    from portfolio_manager.train import run_directory_name
+    from portfolio_manager.evaluate import agent_run_directory
 
-    archive = runs / run_directory_name(configuration, load_problem().cost_bp) / seed / "policy.zip"
+    archive = agent_run_directory(configuration, train_cost_bp, runs) / seed / "policy.zip"
     learned = None
     if archive.is_file():
         from portfolio_manager.evaluate import load_trained_policy
@@ -417,6 +422,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--variance-ratio", action="store_true", help="the curve of the historical matrix")
     parser.add_argument("--config", default="A_gbm", help="configuration whose maps and curves are drawn")
     parser.add_argument("--seed", default="seed_0", help="seed whose policy map is drawn")
+    parser.add_argument(
+        "--train-cost-bp",
+        type=float,
+        default=None,
+        help="cost the plotted agent was trained under, selecting the run directory; the base case when omitted",
+    )
     parser.add_argument("--table", type=Path, default=None, help="results table for the wealth figure")
     args = parser.parse_args(argv)
 
@@ -430,7 +441,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.all or args.policy_maps:
             if (DP_DIRECTORY / f"{args.config}.npz").is_file():
-                written.append(plot_policy_maps(args.config, seed=args.seed))
+                from portfolio_manager.env import load_problem as _load_problem
+
+                train_cost = (
+                    _load_problem().cost_bp if args.train_cost_bp is None else args.train_cost_bp
+                )
+                written.append(
+                    plot_policy_maps(args.config, seed=args.seed, train_cost_bp=train_cost)
+                )
             else:
                 skipped.append(f"policy maps: no table at {DP_DIRECTORY / f'{args.config}.npz'}")
         if args.all or args.training:

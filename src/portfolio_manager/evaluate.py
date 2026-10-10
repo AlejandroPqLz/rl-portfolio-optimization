@@ -25,16 +25,28 @@ draws rather than from a second, independent resampling.
 
 Beyond the comparators
 ----------------------
-A trained agent and the tabulated optimum enter the same table through the same interface, and
-two further pieces exist for the comparisons scheduled after the build day: a discrepancy index
-between two policy maps, for the first hypothesis, and a paired difference of proportions, for the
-second. A reference run records the digest of the comparator table so that a change meant to be
-non-functional can be shown to have been one.
+A trained agent and the tabulated optimum enter the same table through the same interface. When
+agents are scored, each seed is also compared against the table directly: the discrepancy index
+between the two policy maps, for the first hypothesis, and a paired difference of proportions on
+the same scenarios, for the second. A reference run records the digest of the comparator table so
+that a change meant to be non-functional can be shown to have been one.
+
+The two costs
+-------------
+A table involves two transaction costs and they are not the same number. The **training** cost
+selects which agents are read, and nothing else; the **evaluation** cost enters the transition,
+and nothing else. The sweep of thesis 4.2.3 scores one trained agent at 0, 10 and 25 basis
+points, so collapsing them is not an available simplification: ``--train-cost-bp`` defaults to
+``--cost-bp`` because an agent is normally evaluated on the problem it was trained for, and both
+reach the file name and the side-car whenever they differ. Reading the training cost from
+``config/problem.yml`` instead, as this module once did, wrote a table of agents trained at ten
+basis points to a file named and documented for zero.
 
 Command line
 ------------
     uv run python -m portfolio_manager.evaluate --policies baselines --test-set B_L12 --cost-bp 10
     uv run python -m portfolio_manager.evaluate --policies all --test-set A_gbm --cost-bp 0
+    uv run python -m portfolio_manager.evaluate --policies all --test-set B_L12 --train-cost-bp 10 --cost-bp 25
     uv run python -m portfolio_manager.evaluate --reference-run
 """
 
@@ -46,6 +58,7 @@ import hashlib
 import json
 import sys
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -92,6 +105,60 @@ CONFIDENCE = 0.95
 """Nominal coverage of the reported interval."""
 
 MONTHS_PER_YEAR = 12
+
+FREEZE_NOTICE = "PRELIMINARY: these figures are not frozen until the freeze of 11 October."
+
+
+@dataclass(frozen=True)
+class Costs:
+    """The two transaction costs a table involves, which are not the same number.
+
+    An agent is trained against one cost and may be scored against another: that is the whole of
+    the sweep in thesis 4.2.3, where one trained policy meets 0, 10 and 25 basis points. Carrying
+    them as one value is what let a table of agents trained at ten basis points be written to a
+    file named for zero. They are separate fields here, both reach every file name and every
+    side-car, and nothing downstream may collapse them.
+
+    Attributes:
+        train_bp: The cost the agents were trained under. Selects the run directory, nothing else.
+        evaluate_bp: The cost charged during this evaluation. Enters the transition, nothing else.
+    """
+
+    train_bp: float
+    evaluate_bp: float
+
+    @property
+    def rate(self) -> float:
+        """``lambda`` of the transition, from the evaluation cost alone."""
+        return self.evaluate_bp * 1e-4
+
+    @property
+    def differ(self) -> bool:
+        return self.train_bp != self.evaluate_bp
+
+    @property
+    def suffix(self) -> str:
+        """File-name suffix: both costs whenever they differ, the single one when they agree."""
+        if self.differ:
+            return f"train{self.train_bp:g}bp_eval{self.evaluate_bp:g}bp"
+        return f"{self.evaluate_bp:g}bp"
+
+    def describe(self) -> str:
+        if self.differ:
+            return f"trained at {self.train_bp:g} bp, evaluated at {self.evaluate_bp:g} bp"
+        return f"{self.evaluate_bp:g} bp, training and evaluation"
+
+
+def resolve_costs(cost_bp: float | None, train_cost_bp: float | None, problem: ProblemConfig) -> Costs:
+    """Fix both costs from what the command line said, with the base case behind each.
+
+    ``--train-cost-bp`` defaults to ``--cost-bp`` rather than to the configured base case: an agent
+    is evaluated on the problem it was trained for unless the caller says otherwise. The sweep is
+    the exception and states the training cost explicitly.
+    """
+    evaluate_bp = problem.cost_bp if cost_bp is None else float(cost_bp)
+    train_bp = evaluate_bp if train_cost_bp is None else float(train_cost_bp)
+    return Costs(train_bp=train_bp, evaluate_bp=evaluate_bp)
 
 
 # ======================================================================================
@@ -154,6 +221,7 @@ def evaluate_policies(
     seed: int,
     n_bootstrap: int = N_BOOTSTRAP,
     confidence: float = CONFIDENCE,
+    success_out: dict[str, np.ndarray] | None = None,
 ) -> dict[str, dict[str, float]]:
     """Score every policy over the same tensor, in the same order, with the same cost.
 
@@ -165,6 +233,9 @@ def evaluate_policies(
         seed: Seed of the bootstrap stream.
         n_bootstrap: Resamples behind each interval.
         confidence: Nominal coverage.
+        success_out: Filled, when given, with the per-scenario success flags of each policy. The
+            paired tests need them and the rollouts are the expensive part of this function, so
+            they are handed out rather than recomputed. Scoring is unaffected.
 
     Returns:
         Mapping from policy name to its metrics, including the interval bounds.
@@ -189,6 +260,8 @@ def evaluate_policies(
 
     # Common random numbers: one stream of resampled indices, applied to every policy.
     success = {name: (result["terminal_wealth"] >= problem.goal_usd) for name, result in results.items()}
+    if success_out is not None:
+        success_out.update(success)
     estimates: dict[str, list[np.ndarray]] = {name: [] for name in policies}
     rng = np.random.default_rng(seed)
     for block in bootstrap_blocks(rng, int(scenarios.shape[0]), n_bootstrap):
@@ -237,23 +310,50 @@ def load_trained_policy(run_directory: Path, device: str = "cpu") -> Policy:
     return policy_from_model(model)
 
 
+def agent_run_directory(
+    configuration: str, train_cost_bp: float, runs_directory: Path = RUNS_DIRECTORY
+) -> Path:
+    """Where the agents trained on this configuration at this cost live.
+
+    The only place the run directory is derived. It takes the training cost as a required argument
+    and has no default to fall back on, which is the point: the previous version of this module
+    read the cost from ``config/problem.yml`` and so scored agents trained at ten basis points
+    into a table named and documented for zero. A cost that is not passed is now a signature
+    error rather than a silently wrong directory.
+    """
+    from portfolio_manager.train import run_directory_name
+
+    return runs_directory / run_directory_name(configuration, float(train_cost_bp))
+
+
 def trained_policies(
-    configuration: str, runs_directory: Path = RUNS_DIRECTORY, *, train_cost_bp: float | None = None
+    configuration: str, runs_directory: Path = RUNS_DIRECTORY, *, train_cost_bp: float
 ) -> dict[str, Policy]:
-    """Every seed trained on one configuration, keyed by seed.
+    """Every seed trained on one configuration at one training cost, keyed by seed.
 
     The protocol trains five independent seeds per configuration (D70), and they are scored
     individually rather than averaged: the spread across seeds is part of the result.
 
     ``train_cost_bp`` is the cost the agents were TRAINED under, which is not the cost they are
     being evaluated at. The sweep of thesis 4.2.3 scores one trained agent at several costs, so the
-    two are independent and the training cost selects which run directory to read.
-    """
-    from portfolio_manager.train import run_directory_name
+    two are independent and the training cost selects which run directory to read. It is
+    **keyword-only and required**: there is no correct default, and the one that used to be here
+    was the defect.
 
-    cost = load_problem().cost_bp if train_cost_bp is None else float(train_cost_bp)
-    root = runs_directory / run_directory_name(configuration, cost)
+    Raises:
+        FileNotFoundError: If no run directory exists for this cost, or it holds no seed. Silence
+            here would produce a table whose agent rows are simply missing, or worse, a table of
+            the wrong agents under the right name.
+    """
+    root = agent_run_directory(configuration, train_cost_bp, runs_directory)
+    if not root.is_dir():
+        raise FileNotFoundError(
+            f"no agents trained at {train_cost_bp:g} bp on {configuration}: {root} does not exist. "
+            f"Train them, or name the training cost with --train-cost-bp"
+        )
     found = sorted(root.glob("seed_*/policy.zip"), key=lambda path: int(path.parent.name.split("_")[1]))
+    if not found:
+        raise FileNotFoundError(f"{root} holds no seed_*/policy.zip")
     return {f"agent_{archive.parent.name}": load_trained_policy(archive) for archive in found}
 
 
@@ -400,6 +500,83 @@ def paired_proportions(success_a: np.ndarray, success_b: np.ndarray) -> dict[str
     }
 
 
+AGENT_PREFIX = "agent_"
+TABLE_POLICY = "dp_table"
+
+
+def agents_against_table(
+    policies: dict[str, Policy],
+    success: dict[str, np.ndarray],
+    scenarios: np.ndarray,
+    *,
+    problem: ProblemConfig,
+    directory: Path = DP_DIRECTORY,
+    configuration: str,
+) -> list[dict[str, Any]]:
+    """Per seed: how far the learned policy sits from the table, and whether it does better.
+
+    The two halves of H1 and H2 that the metrics table cannot show. The metrics table reports each
+    policy on its own; these compare each agent against the tabulated optimum on the same
+    scenarios and over the states the agent actually visits, which is the comparison the memoir
+    makes. Printed rather than merely written because the author reads the terminal.
+
+    Returns an empty list when there is no table for this configuration, which is a statement
+    about the solver's coverage and not an error: the metrics table is still valid without it.
+    """
+    path = directory / f"{configuration}.npz"
+    if not path.is_file() or TABLE_POLICY not in success:
+        return []
+    table = np.load(path)
+
+    rows: list[dict[str, Any]] = []
+    for name in policies:
+        if not name.startswith(AGENT_PREFIX):
+            continue
+        test = paired_proportions(success[name], success[TABLE_POLICY])
+        distance = discrepancy_index(table, policies[name], scenarios, problem)
+        rows.append(
+            {
+                "policy": name,
+                "probability_of_reaching_goal": float(success[name].mean()),
+                "table_probability_of_reaching_goal": float(success[TABLE_POLICY].mean()),
+                **{f"mcnemar_{key}": value for key, value in test.items()},
+                **{f"discrepancy_{key}": value for key, value in distance.items()},
+            }
+        )
+    return rows
+
+
+def _print_agents_against_table(rows: list[dict[str, Any]], configuration: str) -> None:
+    """Print the per-seed discrepancy index and paired test under the metrics table."""
+    if not rows:
+        print(
+            f"\nno table at {DP_DIRECTORY / f'{configuration}.npz'}: the discrepancy index and the "
+            f"paired test against {TABLE_POLICY} are not available for this configuration."
+        )
+        return
+    print(f"\nagainst {TABLE_POLICY}, per seed: paired outcomes and distance between policy maps")
+    header = (
+        f"{'policy':18} {'P(agent)':>9} {'P(table)':>9} {'diff':>8} {'a_only':>7} {'b_only':>7} "
+        f"{'p':>11} {'mean dist':>10} {'median':>8} {'>1 step':>8} {'states':>11} {'degenerate':>11}"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        print(
+            f"{row['policy']:18} {row['probability_of_reaching_goal']:9.4f} "
+            f"{row['table_probability_of_reaching_goal']:9.4f} {row['mcnemar_difference']:+8.4f} "
+            f"{row['mcnemar_a_only']:7,} {row['mcnemar_b_only']:7,} {row['mcnemar_p_value']:11.3e} "
+            f"{row['discrepancy_mean_distance']:10.4f} {row['discrepancy_median_distance']:8.4f} "
+            f"{row['discrepancy_share_beyond_one_action_step']:8.4f} "
+            f"{row['discrepancy_comparable_states']:11,} {row['discrepancy_degenerate_share']:11.4f}"
+        )
+    print(
+        "Distance is half the L1 distance between portfolios, so 0 is agreement and 1 shares "
+        "nothing. McNemar is exact and two-sided; a_only counts scenarios the agent reaches the "
+        "goal in and the table does not."
+    )
+
+
 # ======================================================================================
 # Output
 # ======================================================================================
@@ -513,8 +690,10 @@ def terciles(
         scenarios: ``(n, T, N)`` frozen tensor.
         problem: Base case; read from configuration when omitted.
         cost_rate: Overrides ``lambda``.
-        reference: Comparator the agent is tested against inside each third.
-        agent: Policy treated as the agent; the first name starting with ``agent`` when omitted.
+        reference: Comparator the agents are tested against inside each third.
+        agent: Restrict the paired test to this policy; every name starting with ``agent`` when
+            omitted. The protocol trains five seeds and the spread across them is part of the
+            result, so all five are tested by default rather than whichever came first.
 
     Returns:
         A JSON-serialisable document with the per-tercile success rates and the paired tests.
@@ -566,24 +745,29 @@ def terciles(
             },
         }
 
-    agent = agent or next((name for name in policies if name.startswith("agent")), None)
-    if agent is None or reference not in policies:
+    tested = [agent] if agent else [name for name in policies if name.startswith(AGENT_PREFIX)]
+    if not tested or reference not in policies:
         document["paired"] = {
             "skipped": f"needs both an agent and {reference!r} among the policies scored"
         }
         return document
 
-    document["paired"] = {"agent": agent, "reference": reference, "terciles": {}}
-    for index, label in enumerate(names):
-        shared = (buckets[agent] == index) & (buckets[reference] == index)
-        only_one = ((buckets[agent] == index) | (buckets[reference] == index)).sum() - shared.sum()
-        test = paired_proportions(success[agent][shared], success[reference][shared])
-        document["paired"]["terciles"][label] = {
-            **test,
-            "scenarios_in_exactly_one_tercile": int(only_one),
-            "agent_probability": float(success[agent][shared].mean()) if shared.any() else float("nan"),
-            "reference_probability": float(success[reference][shared].mean()) if shared.any() else float("nan"),
-        }
+    document["paired"] = {"reference": reference, "agents": {}}
+    for name in tested:
+        per_tercile: dict[str, Any] = {}
+        for index, label in enumerate(names):
+            shared = (buckets[name] == index) & (buckets[reference] == index)
+            only_one = ((buckets[name] == index) | (buckets[reference] == index)).sum() - shared.sum()
+            test = paired_proportions(success[name][shared], success[reference][shared])
+            per_tercile[label] = {
+                **test,
+                "scenarios_in_exactly_one_tercile": int(only_one),
+                "agent_probability": float(success[name][shared].mean()) if shared.any() else float("nan"),
+                "reference_probability": (
+                    float(success[reference][shared].mean()) if shared.any() else float("nan")
+                ),
+            }
+        document["paired"]["agents"][name] = {"terciles": per_tercile}
     return document
 
 
@@ -682,31 +866,36 @@ def run(
     *,
     seed: int,
     which: str = "baselines",
+    train_cost_bp: float | None = None,
     n_bootstrap: int = N_BOOTSTRAP,
     argv: list[str] | None = None,
     results_directory: Path = RESULTS_DIRECTORY,
-) -> tuple[dict[str, dict[str, float]], Path, dict[str, Any]]:
+    note: str | None = None,
+) -> tuple[dict[str, dict[str, float]], Path, dict[str, Any], list[dict[str, Any]], Costs]:
     """Evaluate a set of policies on one frozen configuration and write the table.
 
     Args:
         test_set: Configuration key of the frozen recipe, for example ``B_L12``.
-        cost_bp: Transaction cost in basis points; the base case when omitted.
+        cost_bp: Transaction cost charged in this evaluation; the base case when omitted.
         which: ``baselines``, ``agent``, ``dp`` or ``all``.
+        train_cost_bp: Cost the agents were trained under, selecting the run directory; the
+            evaluation cost when omitted, because an agent is scored on the problem it was trained
+            for unless the caller says otherwise.
         seed: Seed of the bootstrap stream.
         n_bootstrap: Resamples behind each interval.
         argv: Command line recorded in the side-car.
         results_directory: Where the table is written.
+        note: Recorded verbatim in the side-car, for a file whose history needs one.
 
     Returns:
-        Tuple ``(table, path, described)``, the last being the comparator parameters.
+        Tuple ``(table, path, described, comparisons, costs)``.
     """
     problem = load_problem()
     recipe = load_test_set()
     columns, matrix = load_matrix()
     scenarios, provenance = frozen_tensor(test_set, recipe, matrix=matrix)
 
-    cost_rate = problem.cost_rate if cost_bp is None else float(cost_bp) * 1e-4
-    effective_bp = problem.cost_bp if cost_bp is None else float(cost_bp)
+    costs = resolve_costs(cost_bp, train_cost_bp, problem)
 
     config = load_baselines(columns=columns)
     statistics = load_matrix_metadata()["statistics"]
@@ -718,28 +907,47 @@ def run(
     if which in ("dp", "all"):
         policies.update(table_policy(test_set))
     if which in ("agent", "all"):
-        policies.update(trained_policies(test_set))
+        policies.update(trained_policies(test_set, train_cost_bp=costs.train_bp))
     if not policies:
         raise ValueError(
-            f"no policies to score for --policies {which} on {test_set}: no trained run under "
-            f"{RUNS_DIRECTORY / test_set} and no table at {DP_DIRECTORY / f'{test_set}.npz'}"
+            f"no policies to score for --policies {which} on {test_set}: no table at "
+            f"{DP_DIRECTORY / f'{test_set}.npz'}"
         )
 
+    success: dict[str, np.ndarray] = {}
     table = evaluate_policies(
-        policies, scenarios, problem=problem, cost_rate=cost_rate, seed=seed, n_bootstrap=n_bootstrap
+        policies,
+        scenarios,
+        problem=problem,
+        cost_rate=costs.rate,
+        seed=seed,
+        n_bootstrap=n_bootstrap,
+        success_out=success,
+    )
+    comparisons = (
+        agents_against_table(policies, success, scenarios, problem=problem, configuration=test_set)
+        if which in ("agent", "all")
+        else []
     )
 
     described = describe_baselines(config, statistics=statistics, horizon=horizon)
     name = "heuristics" if which == "baselines" else which
-    path = results_directory / f"{name}_{test_set}_{effective_bp:g}bp.csv"
+    path = results_directory / f"{name}_{test_set}_{costs.suffix}.csv"
     write_table(table, path)
     write_sidecar(
         path,
         {
             "policies": which,
             "policy_names": list(policies),
-            "cost_bp": effective_bp,
-            "cost_rate": cost_rate,
+            "cost_bp": costs.evaluate_bp,
+            "evaluation_cost_bp": costs.evaluate_bp,
+            "training_cost_bp": costs.train_bp,
+            "costs_differ": costs.differ,
+            "agent_run_directory": (
+                str(agent_run_directory(test_set, costs.train_bp)) if which in ("agent", "all") else None
+            ),
+            "agents_against_table": comparisons,
+            "cost_rate": costs.rate,
             "seed": seed,
             "bootstrap_resamples": n_bootstrap,
             "bootstrap_confidence": CONFIDENCE,
@@ -758,11 +966,12 @@ def run(
                 "test_set": sha256_of_file(config_path("test_set")),
             },
             "status": "preliminary until the figures freeze",
+            **({"note": note} if note else {}),
             **provenance,
         },
         argv=argv,
     )
-    return table, path, described
+    return table, path, described, comparisons, costs
 
 
 def run_terciles(
@@ -770,17 +979,21 @@ def run_terciles(
     cost_bp: float | None,
     *,
     which: str = "all",
+    train_cost_bp: float | None = None,
     argv: list[str] | None = None,
     results_directory: Path = RESULTS_DIRECTORY,
-) -> tuple[dict[str, Any], Path]:
-    """Build the tercile split for one configuration and write it with its side-car."""
+) -> tuple[dict[str, Any], Path, Costs]:
+    """Build the tercile split for one configuration and write it with its side-car.
+
+    Takes both costs for the same reason the metrics table does: the third hypothesis is about
+    where an agent's advantage sits, and which agent that is depends on the training cost.
+    """
     problem = load_problem()
     recipe = load_test_set()
     columns, matrix = load_matrix()
     scenarios, provenance = frozen_tensor(test_set, recipe, matrix=matrix)
 
-    cost_rate = problem.cost_rate if cost_bp is None else float(cost_bp) * 1e-4
-    effective_bp = problem.cost_bp if cost_bp is None else float(cost_bp)
+    costs = resolve_costs(cost_bp, train_cost_bp, problem)
 
     config = load_baselines(columns=columns)
     horizon = int(scenarios.shape[1])
@@ -792,15 +1005,17 @@ def run_terciles(
     if which in ("dp", "all"):
         policies.update(table_policy(test_set))
     if which in ("agent", "all"):
-        policies.update(trained_policies(test_set))
+        policies.update(trained_policies(test_set, train_cost_bp=costs.train_bp))
     if not policies:
         raise ValueError(f"no policies to score for --policies {which} on {test_set}")
 
-    document = terciles(policies, scenarios, problem=problem, cost_rate=cost_rate)
+    document = terciles(policies, scenarios, problem=problem, cost_rate=costs.rate)
     document["test_set"] = test_set
-    document["cost_bp"] = effective_bp
+    document["cost_bp"] = costs.evaluate_bp
+    document["evaluation_cost_bp"] = costs.evaluate_bp
+    document["training_cost_bp"] = costs.train_bp
 
-    path = results_directory / f"terciles_{test_set}_{effective_bp:g}bp.json"
+    path = results_directory / f"terciles_{test_set}_{costs.suffix}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(document, indent=2, sort_keys=True, default=float) + "\n", encoding="utf-8")
     write_sidecar(
@@ -808,7 +1023,13 @@ def run_terciles(
         {
             "policies": which,
             "policy_names": list(policies),
-            "cost_bp": effective_bp,
+            "cost_bp": costs.evaluate_bp,
+            "evaluation_cost_bp": costs.evaluate_bp,
+            "training_cost_bp": costs.train_bp,
+            "costs_differ": costs.differ,
+            "agent_run_directory": (
+                str(agent_run_directory(test_set, costs.train_bp)) if which in ("agent", "all") else None
+            ),
             "midpoint_month": document["midpoint_month"],
             "source_matrix_sha256": load_matrix_metadata()["sha256"],
             "config_sha256": {
@@ -821,15 +1042,15 @@ def run_terciles(
         },
         argv=argv,
     )
-    return document, path
+    return document, path, costs
 
 
-def _print_terciles(result: tuple[dict[str, Any], Path]) -> int:
+def _print_terciles(result: tuple[dict[str, Any], Path, Costs]) -> int:
     """Print the per-tercile success rates and the paired tests inside each third."""
-    document, path = result
+    document, path, costs = result
     names = document["tercile_names"]
     print(
-        f"terciles on {document['test_set']} at {document['cost_bp']:g} bp, "
+        f"terciles on {document['test_set']}, {costs.describe()}, "
         f"split by W/G at month {document['midpoint_month']} of each policy's own trajectory\n"
     )
     header = f"{'policy':18} " + " ".join(f"{name:>12}" for name in names)
@@ -846,21 +1067,27 @@ def _print_terciles(result: tuple[dict[str, Any], Path]) -> int:
     if "skipped" in paired:
         print(f"\npaired test skipped: {paired['skipped']}")
     else:
-        print(f"\npaired, {paired['agent']} against {paired['reference']}, inside each third:")
-        print(f"  {'tercile':10} {'n':>7} {'agent':>8} {'ref':>8} {'diff':>9} {'p':>10} {'dropped':>8}")
-        for tercile in names:
-            entry = paired["terciles"][tercile]
-            print(
-                f"  {tercile:10} {entry['n_scenarios']:>7} {entry['agent_probability']:>8.4f} "
-                f"{entry['reference_probability']:>8.4f} {entry['difference']:>+9.4f} "
-                f"{entry['p_value']:>10.3g} {entry['scenarios_in_exactly_one_tercile']:>8}"
-            )
+        print(f"\npaired against {paired['reference']} inside each third, every seed:")
+        header = (
+            f"  {'policy':18} {'tercile':10} {'n':>7} {'agent':>8} {'ref':>8} {'diff':>9} "
+            f"{'p':>10} {'dropped':>8}"
+        )
+        print(header)
+        print("  " + "-" * (len(header) - 2))
+        for name, entry in paired["agents"].items():
+            for tercile in names:
+                row = entry["terciles"][tercile]
+                print(
+                    f"  {name:18} {tercile:10} {row['n_scenarios']:>7} {row['agent_probability']:>8.4f} "
+                    f"{row['reference_probability']:>8.4f} {row['difference']:>+9.4f} "
+                    f"{row['p_value']:>10.3g} {row['scenarios_in_exactly_one_tercile']:>8}"
+                )
         print(
             "\n  dropped: scenarios the two policies place in different thirds. They are excluded so\n"
             "  the comparison stays paired on the same scenarios rather than on two different samples."
         )
     print(f"\nwrote {path}")
-    print("PRELIMINARY: these figures are not frozen until the code freeze.")
+    print(FREEZE_NOTICE)
     return 0
 
 
@@ -903,9 +1130,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="split the test set by progress at mid-horizon and report success within each third (H3)",
     )
-    parser.add_argument("--cost-bp", type=float, default=None, help="transaction cost; the base case when omitted")
+    parser.add_argument(
+        "--cost-bp", type=float, default=None, help="transaction cost charged here; the base case when omitted"
+    )
+    parser.add_argument(
+        "--train-cost-bp",
+        type=float,
+        default=None,
+        help=(
+            "cost the agents were trained under, selecting the run directory; --cost-bp when "
+            "omitted, because an agent is evaluated on the problem it was trained for. The sweep "
+            "passes it explicitly, e.g. --train-cost-bp 10 --cost-bp 25"
+        ),
+    )
     parser.add_argument("--seed", type=int, default=None, help="bootstrap seed; the validation band when omitted")
     parser.add_argument("--n-bootstrap", type=int, default=N_BOOTSTRAP, help="resamples behind each interval")
+    parser.add_argument("--note", default=None, help="recorded verbatim in the side-car")
     args = parser.parse_args(argv)
 
     try:
@@ -925,26 +1165,35 @@ def main(argv: list[str] | None = None) -> int:
                     args.test_set,
                     args.cost_bp,
                     which=args.policies,
+                    train_cost_bp=args.train_cost_bp,
                     argv=argv if argv is not None else sys.argv,
                 )
             )
-        table, path, described = run(
+        table, path, described, comparisons, costs = run(
             args.test_set,
             args.cost_bp,
             seed=seed,
             which=args.policies,
+            train_cost_bp=args.train_cost_bp,
             n_bootstrap=args.n_bootstrap,
             argv=argv if argv is not None else sys.argv,
+            note=args.note,
         )
     except (OSError, ValueError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
 
-    print(f"test set {args.test_set}, {table[next(iter(table))]['n_scenarios']:,} scenarios, seed {seed}\n")
-    _print_parameters(described, problem.cost_bp if args.cost_bp is None else args.cost_bp)
+    print(f"test set {args.test_set}, {table[next(iter(table))]['n_scenarios']:,} scenarios, seed {seed}")
+    print(f"cost                 {costs.describe()}")
+    if args.policies in ("agent", "all"):
+        print(f"agents from          {agent_run_directory(args.test_set, costs.train_bp)}")
+    print()
+    _print_parameters(described, costs.evaluate_bp)
     _print_table(table, problem.goal_usd)
+    if args.policies in ("agent", "all"):
+        _print_agents_against_table(comparisons, args.test_set)
     print(f"\nwrote {path}")
-    print("PRELIMINARY: these figures are not frozen until the code freeze of 10 October.")
+    print(FREEZE_NOTICE)
     return 0
 
 

@@ -1,0 +1,132 @@
+{
+  "agent_run_directory": "results/runs/B_L12_10bp",
+  "agents_against_table": [],
+  "baselines": {
+    "columns": [
+      "us_equity",
+      "ust10y",
+      "ust2y",
+      "gold"
+    ],
+    "constant_mix_weights": [
+      0.6,
+      0.2625808,
+      0.13741920000000002,
+      0.0
+    ],
+    "equal_weight": 0.25,
+    "fixed_income_split": {
+      "ust10y": 0.656452,
+      "ust2y": 0.343548
+    },
+    "fixed_weights": {
+      "gold": 0.0
+    },
+    "glide_path": {
+      "equity_weight_end": 0.488,
+      "equity_weight_start": 0.669,
+      "shape": "linear",
+      "weights_at_end": [
+        0.488,
+        0.33610342400000004,
+        0.17589657600000003,
+        0.0
+      ],
+      "weights_at_start": [
+        0.669,
+        0.217285612,
+        0.113714388,
+        0.0
+      ]
+    },
+    "horizon_months": 120,
+    "merton": {
+      "gamma_2": {
+        "equity_premium": 0.07244817298564987,
+        "mu": 0.10703629500582634,
+        "r": 0.03458812202017647,
+        "sigma": 0.15291753630295948,
+        "unclipped": 1.549112140023142,
+        "weight": 1.0
+      },
+      "gamma_5": {
+        "equity_premium": 0.07244817298564987,
+        "mu": 0.10703629500582634,
+        "r": 0.03458812202017647,
+        "sigma": 0.15291753630295948,
+        "unclipped": 0.6196448560092569,
+        "weight": 0.6196448560092569
+      }
+    }
+  },
+  "bootstrap_confidence": 0.95,
+  "bootstrap_resamples": 10000,
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/evaluate.py",
+    "--policies",
+    "all",
+    "--test-set",
+    "B_L12",
+    "--cost-bp",
+    "10"
+  ],
+  "config_sha256": {
+    "baselines": "fac122ba209e0467f61bd81d363d70ad160e44dc37fce68b9f7a8d8cadf4950c",
+    "problem": "0d871015a7f056a7201125ce7fa9708dfb29fcf50116990c89933c7bb9febb67",
+    "test_set": "40c366886f8a169afe7162e3727aef35865ef4c27a8947db76624a3c8ceaf5b0"
+  },
+  "cost_bp": 10.0,
+  "cost_rate": 0.001,
+  "costs_differ": false,
+  "effective_seed": 20260810,
+  "environment_differences": [],
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 6,
+    "torch_version": "2.13.0"
+  },
+  "evaluation_cost_bp": 10.0,
+  "frozen_digest_verdict": "match",
+  "git_commit": "c001bdd5de4b210d581546408d42691cc6d20402",
+  "horizon_months": 120,
+  "mean_block_length_months": 12,
+  "mode": "B",
+  "n_scenarios": 20000,
+  "policies": "all",
+  "policy_names": [
+    "constant_mix",
+    "glide_path",
+    "merton_gamma_2",
+    "merton_gamma_5",
+    "equal_weight",
+    "agent_seed_0",
+    "agent_seed_1",
+    "agent_seed_2",
+    "agent_seed_3",
+    "agent_seed_4"
+  ],
+  "problem": {
+    "goal_usd": 60000.0,
+    "horizon_months": 120,
+    "initial_wealth_usd": 0.0,
+    "monthly_contribution_usd": 400.0,
+    "objective": "lpm2"
+  },
+  "result_file": "results/all_B_L12_10bp.csv",
+  "seed": 1000,
+  "source_matrix_sha256": "a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca",
+  "status": "preliminary until the figures freeze",
+  "tensor_sha256": "aba55a058906a37b81716834119f73f7f8008b84d2c8460e2ea6c1ab16e5838b",
+  "test_set": "B_L12",
+  "training_cost_bp": 10.0,
+  "written_at_utc": "2026-10-10T22:03:13+00:00"
+}

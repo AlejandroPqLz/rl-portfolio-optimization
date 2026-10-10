@@ -1,4 +1,92 @@
 {
+  "agent_run_directory": "results/runs/A_gbm_0bp",
+  "agents_against_table": [
+    {
+      "discrepancy_comparable_states": 2123850,
+      "discrepancy_degenerate_share": 0.1150625,
+      "discrepancy_mean_distance": 0.37323423536336003,
+      "discrepancy_median_distance": 0.36966715531420485,
+      "discrepancy_share_beyond_one_action_step": 0.9904475363137698,
+      "mcnemar_a_only": 904,
+      "mcnemar_b_only": 538,
+      "mcnemar_difference": 0.0183,
+      "mcnemar_discordant": 1442,
+      "mcnemar_n_scenarios": 20000,
+      "mcnemar_p_value": 4.292241033426581e-22,
+      "mcnemar_standard_error": 0.0018986837546047526,
+      "policy": "agent_seed_0",
+      "probability_of_reaching_goal": 0.8873,
+      "table_probability_of_reaching_goal": 0.869
+    },
+    {
+      "discrepancy_comparable_states": 2055913,
+      "discrepancy_degenerate_share": 0.14336958333333333,
+      "discrepancy_mean_distance": 0.40857668941915276,
+      "discrepancy_median_distance": 0.4005400776983815,
+      "discrepancy_share_beyond_one_action_step": 0.9986512075170496,
+      "mcnemar_a_only": 964,
+      "mcnemar_b_only": 642,
+      "mcnemar_difference": 0.0161,
+      "mcnemar_discordant": 1606,
+      "mcnemar_n_scenarios": 20000,
+      "mcnemar_p_value": 9.234154873867964e-16,
+      "mcnemar_standard_error": 0.002003746490951388,
+      "policy": "agent_seed_1",
+      "probability_of_reaching_goal": 0.8851,
+      "table_probability_of_reaching_goal": 0.869
+    },
+    {
+      "discrepancy_comparable_states": 2052574,
+      "discrepancy_degenerate_share": 0.14476083333333334,
+      "discrepancy_mean_distance": 0.38366157677700646,
+      "discrepancy_median_distance": 0.41930584867693427,
+      "discrepancy_share_beyond_one_action_step": 0.9944869222741787,
+      "mcnemar_a_only": 1049,
+      "mcnemar_b_only": 609,
+      "mcnemar_difference": 0.022,
+      "mcnemar_discordant": 1658,
+      "mcnemar_n_scenarios": 20000,
+      "mcnemar_p_value": 2.0970406960462874e-27,
+      "mcnemar_standard_error": 0.002035927307150233,
+      "policy": "agent_seed_2",
+      "probability_of_reaching_goal": 0.891,
+      "table_probability_of_reaching_goal": 0.869
+    },
+    {
+      "discrepancy_comparable_states": 2166865,
+      "discrepancy_degenerate_share": 0.09713958333333333,
+      "discrepancy_mean_distance": 0.33919617373060423,
+      "discrepancy_median_distance": 0.34753913283348087,
+      "discrepancy_share_beyond_one_action_step": 0.9886799592960337,
+      "mcnemar_a_only": 1007,
+      "mcnemar_b_only": 506,
+      "mcnemar_difference": 0.02505,
+      "mcnemar_discordant": 1513,
+      "mcnemar_n_scenarios": 20000,
+      "mcnemar_p_value": 1.685506207092136e-38,
+      "mcnemar_standard_error": 0.0019448650338776722,
+      "policy": "agent_seed_3",
+      "probability_of_reaching_goal": 0.89405,
+      "table_probability_of_reaching_goal": 0.869
+    },
+    {
+      "discrepancy_comparable_states": 2096483,
+      "discrepancy_degenerate_share": 0.12646541666666666,
+      "discrepancy_mean_distance": 0.3886860579828422,
+      "discrepancy_median_distance": 0.4210927745211374,
+      "discrepancy_share_beyond_one_action_step": 0.9989024475752963,
+      "mcnemar_a_only": 1079,
+      "mcnemar_b_only": 608,
+      "mcnemar_difference": 0.02355,
+      "mcnemar_discordant": 1687,
+      "mcnemar_n_scenarios": 20000,
+      "mcnemar_p_value": 1.0633009623777485e-30,
+      "mcnemar_standard_error": 0.002053655277791285,
+      "policy": "agent_seed_4",
+      "probability_of_reaching_goal": 0.89255,
+      "table_probability_of_reaching_goal": 0.869
+    }
+  ],
   "baselines": {
     "columns": [
       "us_equity",
@@ -75,6 +163,7 @@
   },
   "cost_bp": 0.0,
   "cost_rate": 0.0,
+  "costs_differ": false,
   "effective_seed": 20260809,
   "environment_differences": [],
   "environment_fingerprint": {
@@ -88,11 +177,12 @@
     "python_implementation": "CPython",
     "python_version": "3.12.13",
     "stable_baselines3_version": "2.9.0",
-    "torch_num_threads": 4,
+    "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
+  "evaluation_cost_bp": 0.0,
   "frozen_digest_verdict": "match",
-  "git_commit": "616f75b33921fdb899d14ba2c0982fdd6edc875e",
+  "git_commit": "c001bdd5de4b210d581546408d42691cc6d20402",
   "horizon_months": 120,
   "mean_block_length_months": null,
   "mode": "A",
@@ -124,5 +214,6 @@
   "status": "preliminary until the figures freeze",
   "tensor_sha256": "9dd8165be1235dfb2e5752a3ad7581360a72084e12f51c617f9a4297065fea99",
   "test_set": "A_gbm",
-  "written_at_utc": "2026-10-10T19:50:17+00:00"
+  "training_cost_bp": 0.0,
+  "written_at_utc": "2026-10-10T22:03:07+00:00"
 }

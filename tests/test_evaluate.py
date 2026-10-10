@@ -277,7 +277,7 @@ def test_the_table_is_written_with_the_declared_columns(table, tmp_path):
 @pytest.mark.parametrize("cost_bp", [0.0, 10.0])
 def test_the_command_line_run_produces_a_documented_table(cost_bp, tmp_path):
     """End to end on the frozen tensor, including the side-car the freeze will be checked against."""
-    table, path, _ = run(TEST_SET, cost_bp, seed=SEED, n_bootstrap=200, results_directory=tmp_path)
+    table, path, _, _, _ = run(TEST_SET, cost_bp, seed=SEED, n_bootstrap=200, results_directory=tmp_path)
     assert path.name == f"heuristics_{TEST_SET}_{cost_bp:g}bp.csv"
     assert path.is_file()
 
@@ -296,7 +296,7 @@ def test_the_command_line_run_produces_a_documented_table(cost_bp, tmp_path):
 
 def test_the_evaluated_tensor_is_the_frozen_one(tmp_path):
     """The recipe stores a procedure, so the tensor is regenerated and reconciled rather than trusted."""
-    _, path, _ = run(TEST_SET, 10.0, seed=SEED, n_bootstrap=100, results_directory=tmp_path)
+    _, path, _, _, _ = run(TEST_SET, 10.0, seed=SEED, n_bootstrap=100, results_directory=tmp_path)
     sidecar = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
     columns, matrix = load_matrix()
     assert sidecar["source_matrix_sha256"] == load_matrix_metadata()["sha256"]

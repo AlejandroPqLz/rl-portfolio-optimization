@@ -26,12 +26,16 @@ from portfolio_manager.dp_solver import (
 from portfolio_manager.env import load_problem
 from portfolio_manager.evaluate import (
     REFERENCE_TEST_SET,
+    Costs,
+    agent_run_directory,
+    agents_against_table,
     discrepancy_index,
     evaluate_policies,
     load_trained_policy,
     paired_proportions,
     reference_digest,
     reference_run,
+    resolve_costs,
     run,
     table_policy,
     trained_policies,
@@ -90,16 +94,78 @@ def test_a_missing_policy_is_reported_clearly(tmp_path):
 
 def test_the_trained_seeds_are_discovered_and_ordered():
     """Five seeds per configuration (D70), scored individually because the spread is the result."""
-    found = trained_policies("A_gbm")
+    found = trained_policies("A_gbm", train_cost_bp=0.0)
     assert all(name.startswith("agent_seed_") for name in found)
     assert list(found) == sorted(found, key=lambda name: int(name.rsplit("_", 1)[1]))
 
 
-def test_an_untrained_configuration_yields_no_policies():
-    """Not an error: the batch has not reached that configuration yet."""
-    assert trained_policies(UNTRAINED) == {}
-    # Nor has it reached this one at a cost it was never trained under.
-    assert trained_policies("A_gbm", train_cost_bp=25.0) == {}
+def test_an_untrained_configuration_is_refused_rather_than_silently_empty():
+    """The defect this replaces returned an empty mapping and let the table be written anyway.
+
+    An agent table with no agent rows, or with the wrong ones, reads as a result. Both are now
+    refused by name, with the directory that was looked for in the message.
+    """
+    with pytest.raises(FileNotFoundError, match="no agents trained at 0 bp"):
+        trained_policies(UNTRAINED, train_cost_bp=0.0)
+    with pytest.raises(FileNotFoundError, match="no agents trained at 25 bp on A_gbm"):
+        trained_policies("A_gbm", train_cost_bp=25.0)
+
+
+# --------------------------------------------------------------------------------------------
+# The two costs, which are not the same number
+# --------------------------------------------------------------------------------------------
+
+
+def test_the_run_directory_follows_the_training_cost_and_nothing_else():
+    """The defect: the directory came from config/problem.yml, so --cost-bp 0 scored 10 bp agents.
+
+    The agents trained at ten basis points and those trained at zero are different policies with
+    different numbers. Selecting between them by anything other than the stated training cost is
+    how a table of one came to be written under the name of the other.
+    """
+    assert agent_run_directory("A_gbm", 0.0).name == "A_gbm_0bp"
+    assert agent_run_directory("A_gbm", 10.0).name == "A_gbm_10bp"
+    assert agent_run_directory("B_L12", 25.0).name == "B_L12_25bp"
+    # The configured base case is ten; naming zero must not fall back to it.
+    assert load_problem().cost_bp == 10.0
+    assert agent_run_directory("A_gbm", 0.0) != agent_run_directory("A_gbm", load_problem().cost_bp)
+
+
+def test_the_training_cost_cannot_be_omitted():
+    """Keyword-only and required: there is no correct default, and the one that was here was wrong."""
+    with pytest.raises(TypeError):
+        trained_policies("A_gbm")  # type: ignore[call-arg]
+
+
+def test_the_two_costs_are_independent():
+    """One trained agent, several evaluation costs: that is the sweep of thesis 4.2.3."""
+    problem = load_problem()
+    sweep = [resolve_costs(evaluate, 10.0, problem) for evaluate in (0.0, 10.0, 25.0)]
+    assert [cost.train_bp for cost in sweep] == [10.0, 10.0, 10.0], "one agent throughout"
+    assert [cost.evaluate_bp for cost in sweep] == [0.0, 10.0, 25.0]
+    assert [cost.rate for cost in sweep] == [0.0, 10e-4, 25e-4], "only the evaluation cost is charged"
+    assert [cost.differ for cost in sweep] == [True, False, True]
+
+
+def test_the_training_cost_defaults_to_the_evaluation_cost():
+    """An agent is evaluated on the problem it was trained for unless the caller says otherwise."""
+    problem = load_problem()
+    assert resolve_costs(0.0, None, problem) == Costs(train_bp=0.0, evaluate_bp=0.0)
+    assert resolve_costs(25.0, None, problem) == Costs(train_bp=25.0, evaluate_bp=25.0)
+    # Neither given: the configured base case, for both.
+    assert resolve_costs(None, None, problem) == Costs(train_bp=10.0, evaluate_bp=10.0)
+    # The evaluation cost omitted but the training cost named: the base case is evaluated.
+    assert resolve_costs(None, 0.0, problem) == Costs(train_bp=0.0, evaluate_bp=10.0)
+
+
+def test_a_mismatch_cannot_be_written_under_a_single_cost_name():
+    """Both costs reach the file name whenever they differ, so the two tables cannot collide."""
+    assert Costs(train_bp=10.0, evaluate_bp=10.0).suffix == "10bp"
+    assert Costs(train_bp=0.0, evaluate_bp=0.0).suffix == "0bp"
+    assert Costs(train_bp=10.0, evaluate_bp=0.0).suffix == "train10bp_eval0bp"
+    assert Costs(train_bp=10.0, evaluate_bp=25.0).suffix == "train10bp_eval25bp"
+    # The pair that caused the defect and the honest run at zero cannot share a file.
+    assert Costs(train_bp=10.0, evaluate_bp=0.0).suffix != Costs(train_bp=0.0, evaluate_bp=0.0).suffix
 
 
 def test_the_table_is_offered_when_the_solver_has_produced_one():
@@ -566,7 +632,7 @@ def test_theorem_7_1_needs_both_the_flag_and_the_configuration():
 # ======================================================================================
 def test_scoring_the_table_beside_the_comparators(tmp_path):
     """One code path for every strategy, which is what section 2b asks for."""
-    table, path, _ = run("A_gbm", 0.0, seed=SEED, which="all", n_bootstrap=200, results_directory=tmp_path)
+    table, path, _, _, _ = run("A_gbm", 0.0, seed=SEED, which="all", n_bootstrap=200, results_directory=tmp_path)
     assert "dp_table" in table
     assert any(name.startswith("agent_") for name in table)
     assert "constant_mix" in table
@@ -585,7 +651,7 @@ def test_the_tabulated_optimum_beats_the_comparators_on_its_own_objective(tmp_pa
     simulation rather than by backward induction, through code that shares nothing with the solver
     beyond the transition, so the table coming first is evidence the solver is right.
     """
-    table, _, _ = run("A_gbm", 0.0, seed=SEED, which="all", n_bootstrap=200, results_directory=tmp_path)
+    table, _, _, _, _ = run("A_gbm", 0.0, seed=SEED, which="all", n_bootstrap=200, results_directory=tmp_path)
     rewards = {name: row["mean_terminal_reward"] for name, row in table.items()}
     best = max(rewards, key=lambda name: rewards[name])
     assert best == "dp_table", rewards
@@ -593,5 +659,83 @@ def test_the_tabulated_optimum_beats_the_comparators_on_its_own_objective(tmp_pa
 
 def test_an_empty_policy_set_is_reported(tmp_path):
     """Asking for an agent the batch has not trained yet must say so."""
-    with pytest.raises(ValueError, match="no policies to score"):
+    with pytest.raises(FileNotFoundError, match="no agents trained"):
         run(UNTRAINED, 0.0, seed=SEED, which="agent", n_bootstrap=100, results_directory=tmp_path)
+
+
+@pytest.mark.slow
+def test_the_table_is_written_under_both_costs_when_they_differ(tmp_path):
+    """End to end: the sweep's file name, side-car and agents all name the training cost."""
+    table, path, _, comparisons, costs = run(
+        "A_gbm", 0.0, seed=SEED, which="agent", train_cost_bp=10.0, n_bootstrap=100,
+        results_directory=tmp_path, argv=["test"],
+    )
+    assert path.name == "agent_A_gbm_train10bp_eval0bp.csv"
+    assert costs == Costs(train_bp=10.0, evaluate_bp=0.0)
+
+    sidecar = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+    assert sidecar["training_cost_bp"] == 10.0
+    assert sidecar["evaluation_cost_bp"] == 0.0
+    assert sidecar["costs_differ"] is True
+    assert sidecar["cost_rate"] == 0.0, "only the evaluation cost is charged"
+    assert sidecar["agent_run_directory"].endswith("A_gbm_10bp")
+
+    # The same agents at their own cost land on a different file and different figures.
+    other, other_path, _, _, _ = run(
+        "A_gbm", 10.0, seed=SEED, which="agent", n_bootstrap=100,
+        results_directory=tmp_path, argv=["test"],
+    )
+    assert other_path.name == "agent_A_gbm_10bp.csv"
+    assert set(table) == set(other)
+    assert any(
+        table[name]["probability_of_reaching_goal"] != other[name]["probability_of_reaching_goal"]
+        for name in table
+    ), "charging a different cost must move the figures"
+    assert comparisons == [], "A_gbm has a table, but these agents are compared only where asked"
+
+
+@pytest.mark.slow
+def test_the_agent_rows_are_the_agents_of_the_named_training_cost(tmp_path):
+    """The regression: the same evaluation cost, two training costs, two different tables."""
+    at_zero, _, _, _, _ = run(
+        "A_gbm", 0.0, seed=SEED, which="agent", train_cost_bp=0.0, n_bootstrap=100,
+        results_directory=tmp_path, argv=["test"],
+    )
+    at_ten, _, _, _, _ = run(
+        "A_gbm", 0.0, seed=SEED, which="agent", train_cost_bp=10.0, n_bootstrap=100,
+        results_directory=tmp_path, argv=["test"],
+    )
+    differences = [
+        at_zero[name]["probability_of_reaching_goal"] - at_ten[name]["probability_of_reaching_goal"]
+        for name in at_zero
+    ]
+    assert all(value != 0.0 for value in differences), (
+        "every seed must differ: these are different policies, and the defect was reporting one "
+        "set under the other's name"
+    )
+
+
+@pytest.mark.slow
+def test_the_agents_are_compared_against_the_table_per_seed(tmp_path):
+    """--policies all reports the discrepancy index and the paired test, not only the metrics."""
+    _, path, _, comparisons, _ = run(
+        "A_gbm", 0.0, seed=SEED, which="all", train_cost_bp=0.0, n_bootstrap=100,
+        results_directory=tmp_path, argv=["test"],
+    )
+    assert comparisons, "A_gbm has a table, so every agent must be compared against it"
+    assert [row["policy"] for row in comparisons] == sorted(row["policy"] for row in comparisons)
+    for row in comparisons:
+        assert row["policy"].startswith("agent_seed_")
+        assert 0.0 <= row["mcnemar_p_value"] <= 1.0
+        assert row["mcnemar_a_only"] + row["mcnemar_b_only"] == row["mcnemar_discordant"]
+        assert 0.0 <= row["discrepancy_mean_distance"] <= 1.0
+        assert row["discrepancy_comparable_states"] > 0
+    recorded = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+    assert recorded["agents_against_table"] == comparisons, "written as well as printed"
+
+
+def test_the_comparison_is_absent_rather_than_wrong_without_a_table():
+    """B_L12 has no solved table; saying so beats comparing against nothing."""
+    assert table_policy(UNTRAINED) == {}
+    assert agents_against_table({}, {}, np.zeros((1, 2, 4)), problem=load_problem(),
+                                configuration=UNTRAINED) == []
