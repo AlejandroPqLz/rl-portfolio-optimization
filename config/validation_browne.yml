@@ -197,6 +197,78 @@ checks:
     minimum_agreement: 0.95
     refinement: finest             # scored at the finest pair of the sequence
 
+# --- Leverage variant --------------------------------------------------------
+# A SECOND validation configuration, run beside the one above and never in place
+# of it. The experimental configuration is untouched and so are the three
+# verdicts already recorded for the no-leverage run.
+#
+# WHY IT EXISTS. The no-leverage run can only compare the two problems where
+# they happen to coincide, which is the strip between the borrowing boundary and
+# the discounted goal. That strip is narrow, it sits against a boundary the
+# monthly investor can cross before the horizon, and the comparison inherits
+# both limitations: the value error there is dominated by the constraint rather
+# than by the solver. Admitting leverage removes the constraint that separates
+# the two problems, so the comparison can run over the whole of 0 < z < 1 and
+# the disagreement that remains is the solver's own.
+#
+# WHAT CHANGES. The equity fraction runs over [0, max_equity_weight] instead of
+# [0, 1] and the riskless weight is 1 - w, which goes negative: borrowing at r,
+# as the paper's bond allows. The rows of that grid still sum to one and are no
+# longer all non-negative, so it is off the simplex of eq:simplex. Nothing else
+# in the project enumerates such a grid.
+#
+# BANKRUPTCY. With borrowing admitted, a bad enough month can in principle take
+# wealth through zero, which the squared-shortfall arithmetic of the experiment
+# can never do. Wealth is therefore held at zero, which is absorbing because the
+# transition multiplies it: a state at zero stays there and collects the
+# terminal reward of zero. The floor is applied in the caller, for this
+# configuration only, so that the shared transition keeps saying what is true of
+# every other configuration.
+#
+# max_equity_weight = 3 is set by the quadrature and not by taste: at nine nodes
+# the worst monthly return the solver sees is about -16 %, so three times
+# levered leaves wealth at roughly half and the floor never binds. Whether it
+# binds is recorded rather than assumed.
+leverage:
+  enabled: true
+  max_equity_weight: 3.0
+  grid_step: 0.02
+
+  # The comparison set is every node with 0 < z < 1: no margin and no boundary,
+  # since the boundary was only ever a statement about which problem the solver
+  # was allowed to solve. The borrowing region of section 4, z < z*(tau), is
+  # reported as its own stratum instead, because that is where the paper's
+  # control asks for the leverage this variant grants.
+  #
+  # TOLERANCES, WRITTEN BEFORE THE FIRST RUN OF THIS VARIANT (D47).
+  checks:
+    value_tolerance: 0.03          # max |V_DP - V_ref| at the finest pair
+    policy_grid_steps: 3           # 3 * 0.02 = 0.06 on the equity weight
+    require_monotone_decrease: true
+
+    # Reported beside the policy maximum, because a maximum says how far apart
+    # the two policies get and nothing about whether the gap is a bias or a
+    # scatter, nor what it costs. The signed mean answers the first and the
+    # value loss the second: a policy far from w* that gives up nothing is the
+    # objective being flat in the action, not the solver being wrong.
+    report_signed_mean: true
+    report_value_loss: true
+
+    # Delta is a quarter of the risk premium rather than a multiple of the
+    # volatility, so that both directions stay inside the paper's mu >= r. The
+    # no-leverage run uses one monthly standard deviation, which is 6.7 times
+    # the premium and sends the downward perturbation outside it; that run and
+    # its figure are left exactly as recorded.
+    #
+    # No agreement threshold is declared for this variant. The quantities below
+    # are reported as evidence and the verdict rests on the assumption check,
+    # because inventing a threshold here after the first one failed is what D47
+    # exists to prevent.
+    mu_independence:
+      delta_as_fraction_of_premium: 0.25
+      agreement_grid_steps: 2
+      require_paper_assumption_both_ways: true
+
 # --- Theorem 7.1, exogenous income -------------------------------------------
 # Section 7, and P1 rather than part of the validation: D72 reduced D44 to the
 # three checks above and moved the income case out. The closed forms are

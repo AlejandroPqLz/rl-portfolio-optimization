@@ -34,13 +34,34 @@ from portfolio_manager.generator import config_path, load_gbm_params
 # Constants
 # =====================================================================
 TABLE_1 = (
-    (0.001, 2.26, 0.99), (0.05, 1.19, 0.88), (0.10, 0.93, 0.82), (0.15, 0.75, 0.77),
-    (0.20, 0.63, 0.73), (0.25, 0.52, 0.70), (0.30, 0.43, 0.67), (0.35, 0.35, 0.64),
-    (0.40, 0.27, 0.61), (0.45, 0.21, 0.58), (0.50, 0.15, 0.56), (0.55, 0.09, 0.54),
-    (0.60, 0.04, 0.51), (0.65, -0.01, 0.49), (0.70, -0.06, 0.48), (0.75, -0.11, 0.46),
-    (0.80, -0.15, 0.44), (0.85, -0.19, 0.43), (0.90, -0.23, 0.41), (0.95, -0.27, 0.39),
-    (1.00, -0.30, 0.38), (1.5, -0.61, 0.27), (2.0, -0.86, 0.19), (2.5, -1.07, 0.14),
-    (3.0, -1.25, 0.10), (3.5, -1.42, 0.08), (4.0, -1.57, 0.06), (4.5, -1.71, 0.04),
+    (0.001, 2.26, 0.99),
+    (0.05, 1.19, 0.88),
+    (0.10, 0.93, 0.82),
+    (0.15, 0.75, 0.77),
+    (0.20, 0.63, 0.73),
+    (0.25, 0.52, 0.70),
+    (0.30, 0.43, 0.67),
+    (0.35, 0.35, 0.64),
+    (0.40, 0.27, 0.61),
+    (0.45, 0.21, 0.58),
+    (0.50, 0.15, 0.56),
+    (0.55, 0.09, 0.54),
+    (0.60, 0.04, 0.51),
+    (0.65, -0.01, 0.49),
+    (0.70, -0.06, 0.48),
+    (0.75, -0.11, 0.46),
+    (0.80, -0.15, 0.44),
+    (0.85, -0.19, 0.43),
+    (0.90, -0.23, 0.41),
+    (0.95, -0.27, 0.39),
+    (1.00, -0.30, 0.38),
+    (1.5, -0.61, 0.27),
+    (2.0, -0.86, 0.19),
+    (2.5, -1.07, 0.14),
+    (3.0, -1.25, 0.10),
+    (3.5, -1.42, 0.08),
+    (4.0, -1.57, 0.06),
+    (4.5, -1.71, 0.04),
     (5.0, -1.84, 0.03),
 )
 """Table 1 of the paper, p. 565, transcribed in section 4 of the reference document."""
@@ -257,9 +278,7 @@ def test_the_optimal_amount_does_not_involve_the_drift(parameters):
     """
     other = BrowneParameters(r=parameters.r, mu=parameters.mu * 2.0, sigma=parameters.sigma)
     wealth = np.linspace(0.05, 0.9, 50)
-    np.testing.assert_array_equal(
-        optimal_amount(wealth, 48.0, parameters), optimal_amount(wealth, 48.0, other)
-    )
+    np.testing.assert_array_equal(optimal_amount(wealth, 48.0, parameters), optimal_amount(wealth, 48.0, other))
     assert not np.allclose(value(wealth, 48.0, parameters), value(wealth, 48.0, other))
 
 
@@ -405,3 +424,57 @@ def test_the_parameters_come_from_the_generator(browne_config):
     assert browne_config["objective"] == "indicator"
     assert browne_config["contribution_usd"] == 0
     assert browne_config["cost_bp"] == 0
+
+
+# --------------------------------------------------------------------------------------------
+# The leverage variant, declared before it is run
+# --------------------------------------------------------------------------------------------
+
+
+def test_the_leverage_block_is_the_one_asked_for(browne_config):
+    """The second variant lives in this file alone and leaves the experiment alone.
+
+    A leverage grid is meaningless for the thesis portfolio, where the simplex is a constraint of
+    the problem and not of the numerics. It exists here because the paper's investor may borrow,
+    and comparing against a control the solver cannot express measures the feasible set instead of
+    the solution.
+    """
+    leverage = browne_config["leverage"]
+    assert leverage["enabled"] is True
+    assert leverage["max_equity_weight"] == 3.0
+    assert leverage["grid_step"] == 0.02
+
+
+def test_the_leverage_tolerances_are_declared_before_the_run(browne_config):
+    """Written into the configuration before anything is solved, so the run cannot choose them."""
+    checks = browne_config["leverage"]["checks"]
+    assert checks["value_tolerance"] == 0.03
+    assert checks["policy_grid_steps"] == 3
+    assert checks["policy_grid_steps"] * browne_config["leverage"]["grid_step"] == pytest.approx(0.06)
+    assert checks["require_monotone_decrease"] is True
+    assert checks["report_signed_mean"] is True
+    assert checks["report_value_loss"] is True
+
+
+def test_the_leverage_independence_check_is_declared_in_full(browne_config):
+    """A perturbation proportional to the premium, so that ``mu >= r`` survives both directions.
+
+    The no-leverage check moves the drift by one monthly standard deviation, which is several
+    times the premium: the downward move crosses into ``mu < r``, outside the paper's assumption.
+    Here the step is a quarter of the premium and the assumption is verified on both sides.
+    """
+    independence = browne_config["leverage"]["checks"]["mu_independence"]
+    assert independence["delta_as_fraction_of_premium"] == 0.25
+    assert independence["agreement_grid_steps"] == 2
+    assert independence["require_paper_assumption_both_ways"] is True
+
+
+def test_the_no_leverage_configuration_is_untouched(browne_config):
+    """The first variant's three tolerances are the ones its verdicts were recorded against."""
+    checks = browne_config["checks"]
+    assert checks["margin"] == 0.05
+    assert checks["value_tolerance"] == 0.02
+    assert checks["policy_grid_steps"] == 2
+    assert checks["mu_independence"]["delta_in_monthly_sigma"] == 1.0
+    assert checks["mu_independence"]["minimum_agreement"] == 0.95
+    assert checks["mu_independence"]["agreement_grid_steps"] == 1

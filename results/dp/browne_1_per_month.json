@@ -19,7 +19,7 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
-  "git_commit": "0ff5238cc128a51988ef80fc8ba70547013ba0d0",
+  "git_commit": "616f75b33921fdb899d14ba2c0982fdd6edc875e",
   "max_wealth_reached_over_goal": 4.579898708416615,
   "problem": {
     "goal_usd": 60000.0,
@@ -28,7 +28,7 @@
     "monthly_contribution_usd": 400.0
   },
   "result_file": "results/dp/browne_1_per_month.npz",
-  "seconds_elapsed": 0.1577623329940252,
+  "seconds_elapsed": 0.16020120901521295,
   "solver": {
     "action_step": 0.05,
     "cost_bp": 0.0,
@@ -48,5 +48,5 @@
   "value_at_initial_state": 0.0,
   "value_at_upper_bound": 1.0,
   "value_flat_near_upper_bound": true,
-  "written_at_utc": "2026-10-10T19:41:32+00:00"
+  "written_at_utc": "2026-10-10T20:11:18+00:00"
 }

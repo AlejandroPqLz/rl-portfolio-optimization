@@ -346,8 +346,7 @@ def test_the_paired_test_reads_the_evaluation_output():
     }
     result = paired_proportions(success["all_equity"], success["all_short"])
     assert result["difference"] == pytest.approx(
-        table["all_equity"]["probability_of_reaching_goal"]
-        - table["all_short"]["probability_of_reaching_goal"]
+        table["all_equity"]["probability_of_reaching_goal"] - table["all_short"]["probability_of_reaching_goal"]
     )
 
 
@@ -463,22 +462,70 @@ def test_the_validation_scores_the_three_checks(tmp_path):
     }
     document = run_browne_validation(reduced, directory=tmp_path, checks_directory=tmp_path, argv=["test"])
 
-    assert len(document["levels"]) == 2
-    for level in document["levels"]:
+    assert set(document["variants"]) == {"no_leverage", "leverage"}, "both variants, as asked"
+    variant = document["variants"]["no_leverage"]
+
+    assert len(variant["levels"]) == 2
+    for level in variant["levels"]:
         assert level["n_nodes"] > 0, "the comparison set must not be empty"
         assert level["value_max_error"] >= 0.0
         assert level["policy_max_error"] >= 0.0
 
     for check in ("value_check", "policy_check"):
-        assert set(document[check]) >= {"tolerance", "sequence", "finest", "monotone_decrease", "passed"}
-        assert len(document[check]["sequence"]) == 2
+        assert set(variant[check]) >= {"tolerance", "sequence", "finest", "monotone_decrease", "passed"}
+        assert len(variant[check]["sequence"]) == 2
 
-    independence = document["mu_independence_check"]
+    independence = variant["mu_independence_check"]
     assert set(independence["perturbations"]) == {"plus", "minus"}, "both directions, as asked"
     assert independence["delta"] == pytest.approx(
         float(browne["checks"]["mu_independence"]["delta_in_monthly_sigma"]) * 0.04442, abs=1e-4
     )
     assert (tmp_path / "browne_validation.json").is_file()
+
+
+@pytest.mark.slow
+def test_the_leverage_variant_reports_what_was_declared(tmp_path):
+    """The second variant answers its own three questions on its own comparison set.
+
+    It shares the solver and the closed form with the first and differs only in the action grid,
+    the bankruptcy floor and the set compared, so what is checked here is that each of those three
+    differences reaches the report. The verdicts of the first variant are not touched by it.
+    """
+    browne = load_browne_config()
+    reduced = {
+        **browne,
+        "refinement": [
+            {"steps_per_month": 1, "n_wealth": 401},
+            {"steps_per_month": 2, "n_wealth": 801},
+        ],
+    }
+    document = run_browne_validation(reduced, directory=tmp_path, checks_directory=tmp_path, argv=["test"])
+    variant = document["variants"]["leverage"]
+
+    assert variant["action_grid"]["max_equity_weight"] == browne["leverage"]["max_equity_weight"]
+    assert variant["action_grid"]["grid_step"] == browne["leverage"]["grid_step"]
+    assert variant["bankruptcy_floor"]["applied"] is True, "what makes the borrowing region well posed"
+    assert variant["value_check"]["tolerance"] == browne["leverage"]["checks"]["value_tolerance"]
+    assert variant["policy_check"]["signed_mean_at_finest"] is not None, "asked for beside the maximum"
+    assert variant["policy_check"]["value_loss_at_finest"]["mean"] >= 0.0
+
+    independence = variant["mu_independence_check"]
+    assert independence["delta"] == pytest.approx(
+        float(browne["leverage"]["checks"]["mu_independence"]["delta_as_fraction_of_premium"])
+        * independence["base_premium"],
+        rel=1e-9,
+    )
+    assert independence["paper_assumption_both_ways"] is True
+    for side in independence["perturbations"].values():
+        assert side["satisfies_paper_assumption"], "mu >= r in both directions, as asked"
+        assert 0.0 <= side["fraction_within_two_grid_steps"] <= 1.0
+        assert side["mean_absolute_policy_change"] >= 0.0
+
+    strata = variant["strata_at_finest_pair"]
+    assert {"borrowing", "no_borrowing"} <= set(strata)
+    counted = strata["borrowing"]["n_nodes"] + strata["no_borrowing"]["n_nodes"]
+    assert counted == variant["levels"][-1]["n_nodes"], "the boundary splits the set, it does not trim it"
+    assert strata["borrowing_share"] == pytest.approx(strata["borrowing"]["n_nodes"] / counted)
 
 
 @pytest.mark.slow
@@ -519,9 +566,7 @@ def test_theorem_7_1_needs_both_the_flag_and_the_configuration():
 # ======================================================================================
 def test_scoring_the_table_beside_the_comparators(tmp_path):
     """One code path for every strategy, which is what section 2b asks for."""
-    table, path, _ = run(
-        "A_gbm", 0.0, seed=SEED, which="all", n_bootstrap=200, results_directory=tmp_path
-    )
+    table, path, _ = run("A_gbm", 0.0, seed=SEED, which="all", n_bootstrap=200, results_directory=tmp_path)
     assert "dp_table" in table
     assert any(name.startswith("agent_") for name in table)
     assert "constant_mix" in table

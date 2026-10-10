@@ -20,24 +20,31 @@ import pytest
 import yaml
 
 from portfolio_manager.baselines import dp_table_policy
+from portfolio_manager.browne import relative_wealth
 from portfolio_manager.dp_solver import (
     CHECKS_DIRECTORY,
     DP_DIRECTORY,
     GOAL_UNITS,
     Solution,
     SolverConfig,
+    browne_setup,
+    comparison_set,
+    leverage_actions,
+    leverage_comparison_set,
+    load_browne_config,
     load_solver_config,
     performance_cores,
     quadrature,
     save,
     simplex_grid,
     solve,
+    solve_browne,
     stability_checks,
     visited_nodes,
     wealth_grid,
 )
 from portfolio_manager.env import ProblemConfig, load_problem, rollout, step_wealth, terminal_reward
-from portfolio_manager.generator import GbmParams, config_path, generate, load_gbm_params
+from portfolio_manager.generator import GbmParams, config_path, generate, load_gbm_params, load_matrix
 
 # Constants
 # =====================================================================
@@ -297,9 +304,7 @@ def test_the_bellman_equation_holds_at_a_sampled_node(solution, small, params, p
     for node_index, t in ((7, 0), (20, 3), (33, 5)):
         wealth = nodes[node_index]
         next_wealth = wealth * (1.0 + actions @ returns.T) + contribution
-        expected = np.array(
-            [np.interp(row, nodes, solution.value[:, t + 1]) @ weights for row in next_wealth]
-        )
+        expected = np.array([np.interp(row, nodes, solution.value[:, t + 1]) @ weights for row in next_wealth])
         assert solution.value[node_index, t] == pytest.approx(expected.max(), abs=1e-12)
         # The portfolio stored must attain that maximum, whichever of the tied optima it is.
         chosen = np.argmin(np.abs(actions - solution.policy[node_index, t]).sum(axis=1))
@@ -329,9 +334,7 @@ def test_a_riskless_universe_gives_the_deterministic_path(small, problem):
     in the maximisation can improve on it because every portfolio earns the same return.
     """
     rate = 0.004
-    riskless = GbmParams(
-        assets=("a", "b", "c", "d"), mu=np.full(4, np.log1p(rate)), sigma=np.zeros((4, 4))
-    )
+    riskless = GbmParams(assets=("a", "b", "c", "d"), mu=np.full(4, np.log1p(rate)), sigma=np.zeros((4, 4)))
     horizon = 5
     contribution = problem.monthly_contribution_usd / problem.goal_usd
     # A fine wealth grid, affordable here because a deterministic universe needs one quadrature
@@ -372,9 +375,7 @@ def test_the_parallel_solve_is_bit_identical_to_the_serial_one(small, params, pr
     would mean the table depends on the machine it was solved on, and the frozen digests and the
     stability thresholds would both be measuring the thread pool.
     """
-    serial = solve(
-        SolverConfig(**{**small.__dict__, "n_workers": 1}), params=params, problem=problem, horizon=5
-    )
+    serial = solve(SolverConfig(**{**small.__dict__, "n_workers": 1}), params=params, problem=problem, horizon=5)
     for workers in (2, 4, 7):
         parallel = solve(
             SolverConfig(**{**small.__dict__, "n_workers": workers}),
@@ -684,3 +685,111 @@ def test_the_saved_table_matches_the_declared_configuration():
     assert stored["policy"].shape == (config.n_wealth, problem.horizon_months, 4)
     assert stored["action_grid"].shape == (1771, 4)
     np.testing.assert_allclose(stored["wealth_grid"], wealth_grid(config))
+
+
+# The leverage variant of the Browne validation
+# =====================================================================
+# Three differences from the experimental solve, each tested here on its own: an action grid that
+# leaves the simplex, a wealth floor that makes bankruptcy absorbing, and a comparison set that
+# keeps the whole open interval instead of the no-borrowing region. None of the three is reachable
+# from the experimental configuration, which enumerates the simplex and never floors.
+
+
+def test_the_leverage_grid_leaves_the_simplex_but_not_the_budget():
+    """Rows sum to one and go negative above a unit of equity: that is borrowing, not free money."""
+    columns = ("us_equity", "ust10y", "ust2y", "gold")
+    actions = leverage_actions(columns, "us_equity", "ust2y", 3.0, 0.02)
+
+    assert actions.shape == (151, 4)
+    assert np.allclose(actions.sum(axis=1), 1.0), "the budget constraint still holds"
+    assert actions[:, columns.index("us_equity")].max() == pytest.approx(3.0)
+    assert actions[:, columns.index("ust2y")].min() == pytest.approx(-2.0), "borrowing at r"
+    assert np.all(actions[:, [columns.index("ust10y"), columns.index("gold")]] == 0.0)
+    assert np.all(np.diff(actions[:, columns.index("us_equity")]) > 0.0), "one row per grid point"
+
+
+@pytest.mark.parametrize(("max_weight", "step"), [(0.0, 0.02), (3.0, 0.0), (-1.0, 0.02)])
+def test_the_leverage_grid_refuses_a_degenerate_specification(max_weight, step):
+    with pytest.raises(ValueError, match="must be positive"):
+        leverage_actions(("us_equity", "ust2y"), "us_equity", "ust2y", max_weight, step)
+
+
+def test_the_floor_makes_bankruptcy_absorbing():
+    """Without it a levered position can carry wealth below zero and the value function with it.
+
+    The floor belongs to the caller and not to ``step_wealth``: the transition of chapter 3 is the
+    one the experiment defends and nothing in this validation may change it. The volatility here is
+    far above the estimated one so that ruin is inside the quadrature and the floor is exercised;
+    at the fitted parameters a threefold equity weight needs a monthly loss of a third, which no
+    node of a five-point rule reaches, and the flag reports that it never bound.
+    """
+    weights = np.array([3.0, 0.0, -2.0, 0.0])
+    returns = np.array([-0.40, 0.0, 0.0, 0.0])
+
+    wealth, _, _ = step_wealth(1.0, weights, weights, returns, 0.0, 0.0)
+    assert wealth < 0.0, "the unfloored transition is what makes the floor necessary"
+
+    columns = ("us_equity", "ust10y", "ust2y", "gold")
+    params = GbmParams(
+        assets=columns,
+        mu=np.array([0.006, 0.0, 0.002, 0.0]),
+        sigma=np.diag([0.30**2, 0.0, 0.0, 0.0]),
+    )
+    mask = np.array([True, False, True, False])
+    problem = ProblemConfig(
+        goal_usd=1.0,
+        horizon_months=3,
+        monthly_contribution_usd=0.0,
+        initial_wealth_usd=0.0,
+        cost_bp=0,
+        cost_sweep_bp=(0,),
+        objective="indicator",
+    )
+    grid = leverage_actions(columns, "us_equity", "ust2y", 3.0, 0.25)
+    kwargs = {
+        "params": params,
+        "problem": problem,
+        "horizon": 3,
+        "asset_mask": mask,
+        "objective": "indicator",
+        "contribution": 0.0,
+        "action_grid": grid,
+    }
+    floored = solve(load_solver_config(), floor_wealth=True, **kwargs)
+    unfloored = solve(load_solver_config(), floor_wealth=False, **kwargs)
+
+    assert floored.ruin_reached is True, "the floor was exercised here"
+    assert unfloored.ruin_reached is True, "reachable either way: the flag reports the problem"
+    assert np.array_equal(floored.value, unfloored.value), (
+        "the floor is redundant and must be shown to be, not assumed: the interpolation holds "
+        "every point below the grid at its lowest node, which is zero wealth, and zero wealth "
+        "without contributions is already absorbing. It is applied because the variant relies on "
+        "ruin being absorbing and that must not depend on a property of the interpolator"
+    )
+    assert floored.value.min() >= 0.0
+    assert floored.value.max() <= 1.0 + 1e-12
+    assert floored.value_at(0.0, 0) == pytest.approx(0.0, abs=1e-12), "ruin is absorbing"
+
+
+def test_the_leverage_comparison_set_is_the_whole_open_interval():
+    """No margin and no boundary: the borrowing region is compared instead of being excluded.
+
+    In the first variant it had to be excluded, because the simplex cannot express the control the
+    paper prescribes there. Here it can, so the set is every node strictly between ruin and the
+    discounted goal, and the boundary becomes a stratum of the report rather than a filter.
+    """
+    browne = load_browne_config()
+    columns, _ = load_matrix()
+    _, _, closed_form = browne_setup(browne, columns, load_gbm_params())
+    solution = solve_browne({**browne, "n_wealth": 101, "horizon_months": 4}, steps_per_month=1)
+
+    node, step, months = leverage_comparison_set(solution, closed_form, 1)
+    assert node.size > 0
+    z = relative_wealth(solution.wealth_grid[node], months, closed_form.r)
+    assert z.min() > 0.0 and z.max() < 1.0
+
+    strict, _, strict_months = comparison_set(solution, closed_form, 1, float(browne["checks"]["margin"]))
+    assert node.size > strict.size, "the point of the variant is to compare more, not less"
+    if strict.size:
+        assert months.min() <= strict_months.min()
+    assert step.min() >= 0
