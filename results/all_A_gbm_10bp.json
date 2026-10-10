@@ -1,4 +1,172 @@
 {
+  "agent_comparisons": [
+    {
+      "discrepancy": {
+        "comparable_states": 2107958,
+        "degenerate_share": 0.12168416666666666,
+        "mean_distance": 0.39073262010999876,
+        "median_distance": 0.41205322927395194,
+        "share_beyond_one_action_step": 0.9827975699705592
+      },
+      "paired": {
+        "dp_table": {
+          "a_only": 1200,
+          "b_only": 516,
+          "difference": 0.0342,
+          "discordant": 1716,
+          "n_scenarios": 20000,
+          "p_value": 9.678881430075134e-63,
+          "reference_probability": 0.8561,
+          "standard_error": 0.002071231517720798
+        },
+        "glide_path": {
+          "a_only": 1022,
+          "b_only": 860,
+          "difference": 0.0081,
+          "discordant": 1882,
+          "n_scenarios": 20000,
+          "p_value": 0.00020455866961005577,
+          "reference_probability": 0.8822,
+          "standard_error": 0.0021691011963483864
+        }
+      },
+      "policy": "agent_seed_0",
+      "probability_of_reaching_goal": 0.8903
+    },
+    {
+      "discrepancy": {
+        "comparable_states": 2087973,
+        "degenerate_share": 0.13001125,
+        "mean_distance": 0.3140726913843497,
+        "median_distance": 0.26668270528316496,
+        "share_beyond_one_action_step": 0.9951943823028363
+      },
+      "paired": {
+        "dp_table": {
+          "a_only": 1137,
+          "b_only": 276,
+          "difference": 0.04305,
+          "discordant": 1413,
+          "n_scenarios": 20000,
+          "p_value": 3.5802263682135735e-124,
+          "reference_probability": 0.8561,
+          "standard_error": 0.0018794946129212502
+        },
+        "glide_path": {
+          "a_only": 1135,
+          "b_only": 796,
+          "difference": 0.01695,
+          "discordant": 1931,
+          "n_scenarios": 20000,
+          "p_value": 1.2456171197847129e-14,
+          "reference_probability": 0.8822,
+          "standard_error": 0.002197157254271983
+        }
+      },
+      "policy": "agent_seed_1",
+      "probability_of_reaching_goal": 0.89915
+    },
+    {
+      "discrepancy": {
+        "comparable_states": 2056614,
+        "degenerate_share": 0.1430775,
+        "mean_distance": 0.415260466189379,
+        "median_distance": 0.446234830412775,
+        "share_beyond_one_action_step": 0.9904551850760522
+      },
+      "paired": {
+        "dp_table": {
+          "a_only": 1184,
+          "b_only": 627,
+          "difference": 0.02785,
+          "discordant": 1811,
+          "n_scenarios": 20000,
+          "p_value": 1.2915659358486984e-39,
+          "reference_probability": 0.8561,
+          "standard_error": 0.0021277922830953214
+        },
+        "glide_path": {
+          "a_only": 687,
+          "b_only": 652,
+          "difference": 0.00175,
+          "discordant": 1339,
+          "n_scenarios": 20000,
+          "p_value": 0.3528123798466762,
+          "reference_probability": 0.8822,
+          "standard_error": 0.0018296174463531987
+        }
+      },
+      "policy": "agent_seed_2",
+      "probability_of_reaching_goal": 0.88395
+    },
+    {
+      "discrepancy": {
+        "comparable_states": 2236404,
+        "degenerate_share": 0.068165,
+        "mean_distance": 0.31103496975482325,
+        "median_distance": 0.2654769279062764,
+        "share_beyond_one_action_step": 0.9865672749646307
+      },
+      "paired": {
+        "dp_table": {
+          "a_only": 1300,
+          "b_only": 443,
+          "difference": 0.04285,
+          "discordant": 1743,
+          "n_scenarios": 20000,
+          "p_value": 1.6812140698684945e-97,
+          "reference_probability": 0.8561,
+          "standard_error": 0.0020874625745148103
+        },
+        "glide_path": {
+          "a_only": 1039,
+          "b_only": 704,
+          "difference": 0.01675,
+          "discordant": 1743,
+          "n_scenarios": 20000,
+          "p_value": 1.0188566757893304e-15,
+          "reference_probability": 0.8822,
+          "standard_error": 0.0020874625745148103
+        }
+      },
+      "policy": "agent_seed_3",
+      "probability_of_reaching_goal": 0.89895
+    },
+    {
+      "discrepancy": {
+        "comparable_states": 2214716,
+        "degenerate_share": 0.07720166666666667,
+        "mean_distance": 0.3280362734891313,
+        "median_distance": 0.31956863724016665,
+        "share_beyond_one_action_step": 0.9902303500764884
+      },
+      "paired": {
+        "dp_table": {
+          "a_only": 708,
+          "b_only": 1051,
+          "difference": -0.01715,
+          "discordant": 1759,
+          "n_scenarios": 20000,
+          "p_value": 2.836673103167861e-16,
+          "reference_probability": 0.8561,
+          "standard_error": 0.002097021697551077
+        },
+        "glide_path": {
+          "a_only": 826,
+          "b_only": 1691,
+          "difference": -0.04325,
+          "discordant": 2517,
+          "n_scenarios": 20000,
+          "p_value": 8.59292504940236e-68,
+          "reference_probability": 0.8822,
+          "standard_error": 0.0025084855989221866
+        }
+      },
+      "policy": "agent_seed_4",
+      "probability_of_reaching_goal": 0.83895
+    }
+  ],
+  "agent_run_directory": "results/runs/A_gbm_10bp",
   "baselines": {
     "columns": [
       "us_equity",
@@ -75,6 +243,7 @@
   },
   "cost_bp": 10.0,
   "cost_rate": 0.001,
+  "costs_differ": false,
   "effective_seed": 20260809,
   "environment_differences": [],
   "environment_fingerprint": {
@@ -91,8 +260,9 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
+  "evaluation_cost_bp": 10.0,
   "frozen_digest_verdict": "match",
-  "git_commit": "d9eaa1da5105439ed8c7b489a0bfc53799fa21d9",
+  "git_commit": "02e1185ec9f63814f2f8975e130030c37f2eee9c",
   "horizon_months": 120,
   "mean_block_length_months": null,
   "mode": "A",
@@ -124,5 +294,6 @@
   "status": "preliminary until the figures freeze",
   "tensor_sha256": "9dd8165be1235dfb2e5752a3ad7581360a72084e12f51c617f9a4297065fea99",
   "test_set": "A_gbm",
-  "written_at_utc": "2026-10-10T17:30:39+00:00"
+  "training_cost_bp": 10.0,
+  "written_at_utc": "2026-10-10T22:29:22+00:00"
 }

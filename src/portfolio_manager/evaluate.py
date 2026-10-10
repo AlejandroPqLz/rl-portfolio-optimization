@@ -26,10 +26,12 @@ draws rather than from a second, independent resampling.
 Beyond the comparators
 ----------------------
 A trained agent and the tabulated optimum enter the same table through the same interface. When
-agents are scored, each seed is also compared against the table directly: the discrepancy index
-between the two policy maps, for the first hypothesis, and a paired difference of proportions on
-the same scenarios, for the second. A reference run records the digest of the comparator table so
-that a change meant to be non-functional can be shown to have been one.
+agents are scored, each seed is also tested against two references on the same scenarios: against
+``glide_path``, the best heuristic by probability in every configuration, the paired difference of
+proportions of the second hypothesis; and against ``dp_table`` where one exists, the same test
+plus the discrepancy index between the two policy maps, for the first. A reference run records the
+digest of the comparator table so that a change meant to be non-functional can be shown to have
+been one.
 
 The two costs
 -------------
@@ -503,8 +505,16 @@ def paired_proportions(success_a: np.ndarray, success_b: np.ndarray) -> dict[str
 AGENT_PREFIX = "agent_"
 TABLE_POLICY = "dp_table"
 
+H2_REFERENCE = "glide_path"
+"""Comparator the second hypothesis is contested against.
 
-def agents_against_table(
+The best heuristic by probability of reaching the goal in every configuration evaluated, which is
+what makes it the honest opponent: testing against a comparator the agent already dominates would
+measure the comparator. It is also the strategy the question is practically about, since a glide
+path is what a target-date fund sells."""
+
+
+def agent_comparisons(
     policies: dict[str, Policy],
     success: dict[str, np.ndarray],
     scenarios: np.ndarray,
@@ -513,47 +523,81 @@ def agents_against_table(
     directory: Path = DP_DIRECTORY,
     configuration: str,
 ) -> list[dict[str, Any]]:
-    """Per seed: how far the learned policy sits from the table, and whether it does better.
+    """Per seed: whether the agent does better, and how far its policy sits from the table.
 
-    The two halves of H1 and H2 that the metrics table cannot show. The metrics table reports each
-    policy on its own; these compare each agent against the tabulated optimum on the same
-    scenarios and over the states the agent actually visits, which is the comparison the memoir
-    makes. Printed rather than merely written because the author reads the terminal.
+    What the metrics table cannot show. That table reports each policy on its own, and two
+    proportions read off it are not a test: the frozen test set exists so that every policy meets
+    the same scenarios in the same order, and throwing the pairing away would widen the comparison
+    for no reason. Each agent is therefore tested against two references on the same scenarios.
 
-    Returns an empty list when there is no table for this configuration, which is a statement
-    about the solver's coverage and not an error: the metrics table is still valid without it.
+    Against ``glide_path``, the paired difference of proportions of H2 (thesis 4.2.4). Against
+    ``dp_table``, the same test plus the discrepancy index over the states the agent actually
+    visits, which is H1. The second is available only where the solver has produced a table; the
+    first is available wherever the comparators were scored, so a configuration without a table
+    still gets the hypothesis it was run for.
+
+    Returns one row per agent that has at least one reference to be compared against, and an
+    empty list otherwise: ``--policies agent`` scores neither reference, and a row carrying no
+    comparison is not a result.
     """
     path = directory / f"{configuration}.npz"
-    if not path.is_file() or TABLE_POLICY not in success:
-        return []
-    table = np.load(path)
+    table = np.load(path) if path.is_file() and TABLE_POLICY in success else None
 
     rows: list[dict[str, Any]] = []
     for name in policies:
         if not name.startswith(AGENT_PREFIX):
             continue
-        test = paired_proportions(success[name], success[TABLE_POLICY])
-        distance = discrepancy_index(table, policies[name], scenarios, problem)
-        rows.append(
-            {
-                "policy": name,
-                "probability_of_reaching_goal": float(success[name].mean()),
-                "table_probability_of_reaching_goal": float(success[TABLE_POLICY].mean()),
-                **{f"mcnemar_{key}": value for key, value in test.items()},
-                **{f"discrepancy_{key}": value for key, value in distance.items()},
+        paired: dict[str, Any] = {}
+        for reference in (H2_REFERENCE, TABLE_POLICY):
+            if reference not in success:
+                continue
+            paired[reference] = {
+                "reference_probability": float(success[reference].mean()),
+                **paired_proportions(success[name], success[reference]),
             }
-        )
+        if not paired:
+            continue
+        row: dict[str, Any] = {
+            "policy": name,
+            "probability_of_reaching_goal": float(success[name].mean()),
+            "paired": paired,
+        }
+        if table is not None:
+            row["discrepancy"] = discrepancy_index(table, policies[name], scenarios, problem)
+        rows.append(row)
     return rows
 
 
-def _print_agents_against_table(rows: list[dict[str, Any]], configuration: str) -> None:
-    """Print the per-seed discrepancy index and paired test under the metrics table."""
+def _print_agent_comparisons(rows: list[dict[str, Any]], configuration: str) -> None:
+    """Print the paired tests and the distance between policy maps, per seed."""
     if not rows:
+        return
+
+    if any(H2_REFERENCE in row["paired"] for row in rows):
+        print(f"\nH2, each seed against {H2_REFERENCE}, paired on the same scenarios")
+        header = (
+            f"{'policy':18} {'P(agent)':>9} {'P(ref)':>9} {'diff':>8} {'a_only':>7} {'b_only':>7} "
+            f"{'p':>11}"
+        )
+        print(header)
+        print("-" * len(header))
+        for row in rows:
+            entry = row["paired"].get(H2_REFERENCE)
+            if entry is None:
+                continue
+            print(
+                f"{row['policy']:18} {row['probability_of_reaching_goal']:9.4f} "
+                f"{entry['reference_probability']:9.4f} {entry['difference']:+8.4f} "
+                f"{entry['a_only']:7,} {entry['b_only']:7,} {entry['p_value']:11.3e}"
+            )
+
+    if not any("discrepancy" in row for row in rows):
         print(
             f"\nno table at {DP_DIRECTORY / f'{configuration}.npz'}: the discrepancy index and the "
             f"paired test against {TABLE_POLICY} are not available for this configuration."
         )
         return
+
     print(f"\nagainst {TABLE_POLICY}, per seed: paired outcomes and distance between policy maps")
     header = (
         f"{'policy':18} {'P(agent)':>9} {'P(table)':>9} {'diff':>8} {'a_only':>7} {'b_only':>7} "
@@ -562,18 +606,20 @@ def _print_agents_against_table(rows: list[dict[str, Any]], configuration: str) 
     print(header)
     print("-" * len(header))
     for row in rows:
+        entry = row["paired"][TABLE_POLICY]
+        distance = row["discrepancy"]
         print(
             f"{row['policy']:18} {row['probability_of_reaching_goal']:9.4f} "
-            f"{row['table_probability_of_reaching_goal']:9.4f} {row['mcnemar_difference']:+8.4f} "
-            f"{row['mcnemar_a_only']:7,} {row['mcnemar_b_only']:7,} {row['mcnemar_p_value']:11.3e} "
-            f"{row['discrepancy_mean_distance']:10.4f} {row['discrepancy_median_distance']:8.4f} "
-            f"{row['discrepancy_share_beyond_one_action_step']:8.4f} "
-            f"{row['discrepancy_comparable_states']:11,} {row['discrepancy_degenerate_share']:11.4f}"
+            f"{entry['reference_probability']:9.4f} {entry['difference']:+8.4f} "
+            f"{entry['a_only']:7,} {entry['b_only']:7,} {entry['p_value']:11.3e} "
+            f"{distance['mean_distance']:10.4f} {distance['median_distance']:8.4f} "
+            f"{distance['share_beyond_one_action_step']:8.4f} "
+            f"{distance['comparable_states']:11,} {distance['degenerate_share']:11.4f}"
         )
     print(
         "Distance is half the L1 distance between portfolios, so 0 is agreement and 1 shares "
         "nothing. McNemar is exact and two-sided; a_only counts scenarios the agent reaches the "
-        "goal in and the table does not."
+        "goal in and the reference does not."
     )
 
 
@@ -925,7 +971,7 @@ def run(
         success_out=success,
     )
     comparisons = (
-        agents_against_table(policies, success, scenarios, problem=problem, configuration=test_set)
+        agent_comparisons(policies, success, scenarios, problem=problem, configuration=test_set)
         if which in ("agent", "all")
         else []
     )
@@ -946,7 +992,7 @@ def run(
             "agent_run_directory": (
                 str(agent_run_directory(test_set, costs.train_bp)) if which in ("agent", "all") else None
             ),
-            "agents_against_table": comparisons,
+            "agent_comparisons": comparisons,
             "cost_rate": costs.rate,
             "seed": seed,
             "bootstrap_resamples": n_bootstrap,
@@ -1191,7 +1237,7 @@ def main(argv: list[str] | None = None) -> int:
     _print_parameters(described, costs.evaluate_bp)
     _print_table(table, problem.goal_usd)
     if args.policies in ("agent", "all"):
-        _print_agents_against_table(comparisons, args.test_set)
+        _print_agent_comparisons(comparisons, args.test_set)
     print(f"\nwrote {path}")
     print(FREEZE_NOTICE)
     return 0

@@ -25,10 +25,11 @@ from portfolio_manager.dp_solver import (
 )
 from portfolio_manager.env import load_problem
 from portfolio_manager.evaluate import (
+    H2_REFERENCE,
     REFERENCE_TEST_SET,
     Costs,
+    agent_comparisons,
     agent_run_directory,
-    agents_against_table,
     discrepancy_index,
     evaluate_policies,
     load_trained_policy,
@@ -726,16 +727,37 @@ def test_the_agents_are_compared_against_the_table_per_seed(tmp_path):
     assert [row["policy"] for row in comparisons] == sorted(row["policy"] for row in comparisons)
     for row in comparisons:
         assert row["policy"].startswith("agent_seed_")
-        assert 0.0 <= row["mcnemar_p_value"] <= 1.0
-        assert row["mcnemar_a_only"] + row["mcnemar_b_only"] == row["mcnemar_discordant"]
-        assert 0.0 <= row["discrepancy_mean_distance"] <= 1.0
-        assert row["discrepancy_comparable_states"] > 0
+        assert set(row["paired"]) == {"glide_path", "dp_table"}, "both references, as asked"
+        for entry in row["paired"].values():
+            assert 0.0 <= entry["p_value"] <= 1.0
+            assert entry["a_only"] + entry["b_only"] == entry["discordant"]
+            assert entry["n_scenarios"] == 20_000, "paired on every test scenario, none dropped"
+        assert 0.0 <= row["discrepancy"]["mean_distance"] <= 1.0
+        assert row["discrepancy"]["comparable_states"] > 0
     recorded = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
-    assert recorded["agents_against_table"] == comparisons, "written as well as printed"
+    assert recorded["agent_comparisons"] == comparisons, "written as well as printed"
 
 
-def test_the_comparison_is_absent_rather_than_wrong_without_a_table():
-    """B_L12 has no solved table; saying so beats comparing against nothing."""
-    assert table_policy(UNTRAINED) == {}
-    assert agents_against_table({}, {}, np.zeros((1, 2, 4)), problem=load_problem(),
-                                configuration=UNTRAINED) == []
+@pytest.mark.slow
+def test_the_h2_test_survives_a_configuration_with_no_table(tmp_path):
+    """B_L12 has no solved table; the hypothesis it was run for must still be tested.
+
+    The first version compared against the table alone and returned nothing without one, so the
+    configurations where H2 is actually contested reported no test at all.
+    """
+    _, _, _, comparisons, _ = run(
+        "B_L12", 10.0, seed=SEED, which="all", n_bootstrap=100,
+        results_directory=tmp_path, argv=["test"],
+    )
+    assert table_policy("B_L12") == {}, "the premise of this test"
+    assert comparisons, "no table is not a reason to skip H2"
+    for row in comparisons:
+        assert set(row["paired"]) == {"glide_path"}
+        assert "discrepancy" not in row, "nothing to measure a distance against"
+
+
+def test_the_reference_of_the_second_hypothesis_is_the_best_heuristic():
+    """Declared, because testing against a comparator the agent dominates measures the comparator."""
+    assert H2_REFERENCE == "glide_path"
+    assert agent_comparisons({}, {}, np.zeros((1, 2, 4)), problem=load_problem(),
+                             configuration=UNTRAINED) == []

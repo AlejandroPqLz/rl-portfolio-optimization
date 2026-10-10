@@ -1,6 +1,87 @@
 {
+  "agent_comparisons": [
+    {
+      "paired": {
+        "glide_path": {
+          "a_only": 1299,
+          "b_only": 447,
+          "difference": 0.0426,
+          "discordant": 1746,
+          "n_scenarios": 20000,
+          "p_value": 3.7040202835926035e-96,
+          "reference_probability": 0.8945,
+          "standard_error": 0.002089258241577618
+        }
+      },
+      "policy": "agent_seed_0",
+      "probability_of_reaching_goal": 0.9371
+    },
+    {
+      "paired": {
+        "glide_path": {
+          "a_only": 1359,
+          "b_only": 822,
+          "difference": 0.02685,
+          "discordant": 2181,
+          "n_scenarios": 20000,
+          "p_value": 8.703525402312176e-31,
+          "reference_probability": 0.8945,
+          "standard_error": 0.0023350588857671234
+        }
+      },
+      "policy": "agent_seed_1",
+      "probability_of_reaching_goal": 0.92135
+    },
+    {
+      "paired": {
+        "glide_path": {
+          "a_only": 1141,
+          "b_only": 810,
+          "difference": 0.01655,
+          "discordant": 1951,
+          "n_scenarios": 20000,
+          "p_value": 6.951197251675011e-14,
+          "reference_probability": 0.8945,
+          "standard_error": 0.0022085062825357776
+        }
+      },
+      "policy": "agent_seed_2",
+      "probability_of_reaching_goal": 0.91105
+    },
+    {
+      "paired": {
+        "glide_path": {
+          "a_only": 1123,
+          "b_only": 680,
+          "difference": 0.02215,
+          "discordant": 1803,
+          "n_scenarios": 20000,
+          "p_value": 1.2886952750656897e-25,
+          "reference_probability": 0.8945,
+          "standard_error": 0.0021230873745562147
+        }
+      },
+      "policy": "agent_seed_3",
+      "probability_of_reaching_goal": 0.91665
+    },
+    {
+      "paired": {
+        "glide_path": {
+          "a_only": 1097,
+          "b_only": 1075,
+          "difference": 0.0011,
+          "discordant": 2172,
+          "n_scenarios": 20000,
+          "p_value": 0.6522891556198205,
+          "reference_probability": 0.8945,
+          "standard_error": 0.0023302360395462086
+        }
+      },
+      "policy": "agent_seed_4",
+      "probability_of_reaching_goal": 0.8956
+    }
+  ],
   "agent_run_directory": "results/runs/B_L24_10bp",
-  "agents_against_table": [],
   "baselines": {
     "columns": [
       "us_equity",
@@ -96,7 +177,7 @@
   },
   "evaluation_cost_bp": 10.0,
   "frozen_digest_verdict": "match",
-  "git_commit": "ebbb690a7538e816c407ed6b19ad20dede8669ad",
+  "git_commit": "02e1185ec9f63814f2f8975e130030c37f2eee9c",
   "horizon_months": 120,
   "mean_block_length_months": 24,
   "mode": "B",
@@ -128,5 +209,5 @@
   "tensor_sha256": "7aaee8856894f46ab5579e755ba42f4a7d46ee78400858a57b558324bd1f7267",
   "test_set": "B_L24",
   "training_cost_bp": 10.0,
-  "written_at_utc": "2026-10-10T22:03:23+00:00"
+  "written_at_utc": "2026-10-10T22:07:48+00:00"
 }
