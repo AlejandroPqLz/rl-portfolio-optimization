@@ -20,46 +20,46 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
-  "git_commit": "b28041a2c5e01c7878085e6dff0041a95fef2e7d",
+  "git_commit": "d9eaa1da5105439ed8c7b489a0bfc53799fa21d9",
   "policy": {
-    "agreement_on_unique_optima": 0.6592679127725857,
-    "agreement_within_one_step": 0.6909219357117626,
-    "max_deviation": 0.3500000000000001,
+    "agreement_on_unique_optima": 0.8924601256645722,
+    "agreement_within_one_step": 0.9031134334857391,
+    "max_deviation": 0.15000000000000008,
     "passed": false,
     "required": 0.95,
     "scenarios": 2000,
     "value_loss": {
-      "max": 3.458322044170431e-06,
-      "mean": 1.3957749354655703e-07,
-      "mean_where_disagreeing": 2.725109196627584e-07,
-      "relative_to_value_tolerance": 0.0006916644088340862
+      "max": 1.3522975103427877e-06,
+      "mean": 2.072547573515896e-08,
+      "mean_where_disagreeing": 8.678624282639347e-08,
+      "relative_to_value_tolerance": 0.00027045950206855754
     },
-    "visited_nodes": 2831,
-    "visited_nodes_with_unique_optimum": 2568
+    "visited_nodes": 4593,
+    "visited_nodes_with_unique_optimum": 4138
   },
   "reference": {
-    "n_quad": 5,
-    "n_wealth": 401
-  },
-  "refined": {
     "n_quad": 7,
     "n_wealth": 801
   },
-  "seconds_elapsed": 540.7918245000183,
+  "refined": {
+    "n_quad": 9,
+    "n_wealth": 1601
+  },
+  "seconds_elapsed": 3362.3388993749977,
   "upper_bound": {
     "bound": 4.0,
     "exceeded": true,
-    "max_wealth_reached_over_goal": 4.586565375083282
+    "max_wealth_reached_over_goal": 4.771990258168039
   },
   "value": {
-    "absolute_difference": 0.00022664599341763243,
+    "absolute_difference": 5.348175622346208e-05,
     "initial_state_over_goal": 0.0,
     "passed": true,
-    "reference": -0.0005164165360361279,
-    "refined": -0.0002897705426184955,
-    "relative_difference": 0.43888213796813147,
+    "reference": -0.0002897705426184955,
+    "refined": -0.00023628878639503343,
+    "relative_difference": 0.18456588354419032,
     "tolerance": 0.005,
-    "tolerance_over_value": 9.682106693133091
+    "tolerance_over_value": 17.255032049903267
   },
-  "written_at_utc": "2026-10-04T20:09:27+00:00"
+  "written_at_utc": "2026-10-10T17:22:24+00:00"
 }

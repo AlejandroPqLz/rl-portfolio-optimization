@@ -11,7 +11,7 @@
   },
   "cost_bp": 10.0,
   "digest": "887863fa1f0e2cd008687f614ebc67143bb9cd228a908a2a19483ccca9ee4509",
-  "git_commit": "b28041a2c5e01c7878085e6dff0041a95fef2e7d",
+  "git_commit": "d9eaa1da5105439ed8c7b489a0bfc53799fa21d9",
   "previous_digest": "887863fa1f0e2cd008687f614ebc67143bb9cd228a908a2a19483ccca9ee4509",
   "seed": 1000,
   "table": {
@@ -109,5 +109,5 @@
   "tensor_sha256": "aba55a058906a37b81716834119f73f7f8008b84d2c8460e2ea6c1ab16e5838b",
   "test_set": "B_L12",
   "verdict": "match",
-  "written_at_utc": "2026-10-04T20:28:23+00:00"
+  "written_at_utc": "2026-10-10T18:37:03+00:00"
 }

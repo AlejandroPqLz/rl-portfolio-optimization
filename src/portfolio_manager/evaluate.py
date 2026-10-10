@@ -208,7 +208,7 @@ def evaluate_policies(
 # ======================================================================================
 # The policies that are not comparators
 # ======================================================================================
-def load_trained_policy(run: Path, device: str = "cpu") -> Policy:
+def load_trained_policy(run_directory: Path, device: str = "cpu") -> Policy:
     """Load a saved agent and expose it through the comparator interface.
 
     The deterministic action of the Dirichlet policy is its mean, so this is the same policy the
@@ -216,7 +216,7 @@ def load_trained_policy(run: Path, device: str = "cpu") -> Policy:
     comparators and the table (section 2b).
 
     Args:
-        run: Directory of a run, holding ``policy.zip``, or the archive itself.
+        run_directory: Directory of a run, holding ``policy.zip``, or the archive itself.
         device: Compute device; CPU for networks this size.
 
     Returns:
@@ -228,7 +228,7 @@ def load_trained_policy(run: Path, device: str = "cpu") -> Policy:
 
     from portfolio_manager.train import DirichletActorCriticPolicy, policy_from_model
 
-    archive = run if run.suffix == ".zip" else run / "policy.zip"
+    archive = run_directory if run_directory.suffix == ".zip" else run_directory / "policy.zip"
     if not archive.is_file():
         raise FileNotFoundError(f"{archive} not found: no trained policy to score")
     model = PPO.load(
@@ -237,13 +237,22 @@ def load_trained_policy(run: Path, device: str = "cpu") -> Policy:
     return policy_from_model(model)
 
 
-def trained_policies(configuration: str, runs_directory: Path = RUNS_DIRECTORY) -> dict[str, Policy]:
+def trained_policies(
+    configuration: str, runs_directory: Path = RUNS_DIRECTORY, *, train_cost_bp: float | None = None
+) -> dict[str, Policy]:
     """Every seed trained on one configuration, keyed by seed.
 
     The protocol trains five independent seeds per configuration (D70), and they are scored
     individually rather than averaged: the spread across seeds is part of the result.
+
+    ``train_cost_bp`` is the cost the agents were TRAINED under, which is not the cost they are
+    being evaluated at. The sweep of thesis 4.2.3 scores one trained agent at several costs, so the
+    two are independent and the training cost selects which run directory to read.
     """
-    root = runs_directory / configuration
+    from portfolio_manager.train import run_directory_name
+
+    cost = load_problem().cost_bp if train_cost_bp is None else float(train_cost_bp)
+    root = runs_directory / run_directory_name(configuration, cost)
     found = sorted(root.glob("seed_*/policy.zip"), key=lambda path: int(path.parent.name.split("_")[1]))
     return {f"agent_{archive.parent.name}": load_trained_policy(archive) for archive in found}
 
@@ -465,6 +474,120 @@ def _print_table(table: dict[str, dict[str, float]], goal: float) -> None:
 
 
 # ======================================================================================
+# The third hypothesis: where the advantage sits
+# ======================================================================================
+N_TERCILES = 3
+MIDPOINT_FRACTION = 0.5
+"""Terciles are formed on relative wealth at the middle of the horizon (thesis 4.2.4)."""
+
+
+def terciles(
+    policies: dict[str, Policy],
+    scenarios: np.ndarray,
+    *,
+    problem: ProblemConfig | None = None,
+    cost_rate: float | None = None,
+    reference: str = "glide_path",
+    agent: str | None = None,
+) -> dict[str, Any]:
+    """Split the test set by progress at mid-horizon and report success within each third.
+
+    The third hypothesis is not about whether the agent wins but about where. If an advantage
+    exists it should sit with the trajectories that are behind the pace at the midpoint, because
+    that is the only situation in which looking at accumulated capital can tell you something the
+    calendar cannot: a glide path descends on the same schedule whether the investor is ahead or
+    behind.
+
+    **Each policy is split by its own trajectory**, not by a common one. The tercile is a statement
+    about the state that policy reached, and sorting every policy by, say, the glide path's wealth
+    would be asking how each does in situations some other strategy created.
+
+    The consequence is that the paired test inside a tercile is paired on scenarios, not on a
+    shared bucket: the two policies being compared may have placed a given scenario in different
+    thirds. The comparison is therefore run on the scenarios the two agree to put in the same
+    third, and the number dropped is reported, because a tercile comparison that quietly conditions
+    on different samples is not paired at all.
+
+    Args:
+        policies: Mapping from name to callable.
+        scenarios: ``(n, T, N)`` frozen tensor.
+        problem: Base case; read from configuration when omitted.
+        cost_rate: Overrides ``lambda``.
+        reference: Comparator the agent is tested against inside each third.
+        agent: Policy treated as the agent; the first name starting with ``agent`` when omitted.
+
+    Returns:
+        A JSON-serialisable document with the per-tercile success rates and the paired tests.
+    """
+    problem = problem or load_problem()
+    midpoint = int(round(problem.horizon_months * MIDPOINT_FRACTION))
+
+    results = {
+        name: rollout(scenarios, policy, problem=problem, cost_rate=cost_rate)
+        for name, policy in policies.items()
+    }
+    # Relative wealth at the midpoint, and the third of the distribution it falls in. Edges are
+    # taken from the policy's own distribution, so each third holds a third of the scenarios.
+    buckets: dict[str, np.ndarray] = {}
+    edges: dict[str, list[float]] = {}
+    for name, result in results.items():
+        middle = result["wealth_path"][:, midpoint] / problem.goal_usd
+        cut = np.quantile(middle, [1.0 / N_TERCILES, 2.0 / N_TERCILES])
+        buckets[name] = np.digitize(middle, cut)
+        edges[name] = [float(value) for value in cut]
+
+    success = {name: result["terminal_wealth"] >= problem.goal_usd for name, result in results.items()}
+    names = [
+        "behind",  # lowest third of relative wealth at the midpoint
+        "on_pace",
+        "ahead",
+    ]
+
+    document: dict[str, Any] = {
+        "midpoint_month": midpoint,
+        "n_scenarios": int(scenarios.shape[0]),
+        "tercile_names": names,
+        "policies": {},
+        "paired": {},
+    }
+    for name in policies:
+        document["policies"][name] = {
+            "midpoint_edges_over_goal": edges[name],
+            "terciles": {
+                names[index]: {
+                    "n_scenarios": int((buckets[name] == index).sum()),
+                    "probability_of_reaching_goal": float(success[name][buckets[name] == index].mean()),
+                    "median_wealth_at_midpoint_over_goal": float(
+                        np.median(results[name]["wealth_path"][buckets[name] == index, midpoint])
+                        / problem.goal_usd
+                    ),
+                }
+                for index in range(N_TERCILES)
+            },
+        }
+
+    agent = agent or next((name for name in policies if name.startswith("agent")), None)
+    if agent is None or reference not in policies:
+        document["paired"] = {
+            "skipped": f"needs both an agent and {reference!r} among the policies scored"
+        }
+        return document
+
+    document["paired"] = {"agent": agent, "reference": reference, "terciles": {}}
+    for index, label in enumerate(names):
+        shared = (buckets[agent] == index) & (buckets[reference] == index)
+        only_one = ((buckets[agent] == index) | (buckets[reference] == index)).sum() - shared.sum()
+        test = paired_proportions(success[agent][shared], success[reference][shared])
+        document["paired"]["terciles"][label] = {
+            **test,
+            "scenarios_in_exactly_one_tercile": int(only_one),
+            "agent_probability": float(success[agent][shared].mean()) if shared.any() else float("nan"),
+            "reference_probability": float(success[reference][shared].mean()) if shared.any() else float("nan"),
+        }
+    return document
+
+
+# ======================================================================================
 # The post-freeze guard
 # ======================================================================================
 REFERENCE_TEST_SET = "B_L12"
@@ -642,6 +765,105 @@ def run(
     return table, path, described
 
 
+def run_terciles(
+    test_set: str,
+    cost_bp: float | None,
+    *,
+    which: str = "all",
+    argv: list[str] | None = None,
+    results_directory: Path = RESULTS_DIRECTORY,
+) -> tuple[dict[str, Any], Path]:
+    """Build the tercile split for one configuration and write it with its side-car."""
+    problem = load_problem()
+    recipe = load_test_set()
+    columns, matrix = load_matrix()
+    scenarios, provenance = frozen_tensor(test_set, recipe, matrix=matrix)
+
+    cost_rate = problem.cost_rate if cost_bp is None else float(cost_bp) * 1e-4
+    effective_bp = problem.cost_bp if cost_bp is None else float(cost_bp)
+
+    config = load_baselines(columns=columns)
+    horizon = int(scenarios.shape[1])
+    policies: dict[str, Policy] = {}
+    if which in ("baselines", "all"):
+        policies.update(
+            build_baselines(config, statistics=load_matrix_metadata()["statistics"], horizon=horizon)
+        )
+    if which in ("dp", "all"):
+        policies.update(table_policy(test_set))
+    if which in ("agent", "all"):
+        policies.update(trained_policies(test_set))
+    if not policies:
+        raise ValueError(f"no policies to score for --policies {which} on {test_set}")
+
+    document = terciles(policies, scenarios, problem=problem, cost_rate=cost_rate)
+    document["test_set"] = test_set
+    document["cost_bp"] = effective_bp
+
+    path = results_directory / f"terciles_{test_set}_{effective_bp:g}bp.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document, indent=2, sort_keys=True, default=float) + "\n", encoding="utf-8")
+    write_sidecar(
+        path,
+        {
+            "policies": which,
+            "policy_names": list(policies),
+            "cost_bp": effective_bp,
+            "midpoint_month": document["midpoint_month"],
+            "source_matrix_sha256": load_matrix_metadata()["sha256"],
+            "config_sha256": {
+                "baselines": sha256_of_file(config_path("baselines")),
+                "problem": sha256_of_file(config_path("problem")),
+                "test_set": sha256_of_file(config_path("test_set")),
+            },
+            "status": "preliminary until the figures freeze",
+            **provenance,
+        },
+        argv=argv,
+    )
+    return document, path
+
+
+def _print_terciles(result: tuple[dict[str, Any], Path]) -> int:
+    """Print the per-tercile success rates and the paired tests inside each third."""
+    document, path = result
+    names = document["tercile_names"]
+    print(
+        f"terciles on {document['test_set']} at {document['cost_bp']:g} bp, "
+        f"split by W/G at month {document['midpoint_month']} of each policy's own trajectory\n"
+    )
+    header = f"{'policy':18} " + " ".join(f"{name:>12}" for name in names)
+    print(header)
+    print("-" * len(header))
+    for name, entry in document["policies"].items():
+        row = f"{name:18} "
+        row += " ".join(
+            f"{entry['terciles'][tercile]['probability_of_reaching_goal']:>12.4f}" for tercile in names
+        )
+        print(row)
+
+    paired = document["paired"]
+    if "skipped" in paired:
+        print(f"\npaired test skipped: {paired['skipped']}")
+    else:
+        print(f"\npaired, {paired['agent']} against {paired['reference']}, inside each third:")
+        print(f"  {'tercile':10} {'n':>7} {'agent':>8} {'ref':>8} {'diff':>9} {'p':>10} {'dropped':>8}")
+        for tercile in names:
+            entry = paired["terciles"][tercile]
+            print(
+                f"  {tercile:10} {entry['n_scenarios']:>7} {entry['agent_probability']:>8.4f} "
+                f"{entry['reference_probability']:>8.4f} {entry['difference']:>+9.4f} "
+                f"{entry['p_value']:>10.3g} {entry['scenarios_in_exactly_one_tercile']:>8}"
+            )
+        print(
+            "\n  dropped: scenarios the two policies place in different thirds. They are excluded so\n"
+            "  the comparison stays paired on the same scenarios rather than on two different samples."
+        )
+    print(f"\nwrote {path}")
+    print("PRELIMINARY: these figures are not frozen until the code freeze.")
+    return 0
+
+
 def _print_reference_run(document: dict[str, Any]) -> int:
     """Print the verdict of the post-freeze guard."""
     print(f"reference run on {document['test_set']} at {document['cost_bp']:g} bp, seed {document['seed']}")
@@ -676,6 +898,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="re-score the comparators on the main configuration and compare against the recorded digest",
     )
+    parser.add_argument(
+        "--terciles",
+        action="store_true",
+        help="split the test set by progress at mid-horizon and report success within each third (H3)",
+    )
     parser.add_argument("--cost-bp", type=float, default=None, help="transaction cost; the base case when omitted")
     parser.add_argument("--seed", type=int, default=None, help="bootstrap seed; the validation band when omitted")
     parser.add_argument("--n-bootstrap", type=int, default=N_BOOTSTRAP, help="resamples behind each interval")
@@ -689,6 +916,15 @@ def main(argv: list[str] | None = None) -> int:
                 reference_run(
                     seed=seed,
                     n_bootstrap=args.n_bootstrap,
+                    argv=argv if argv is not None else sys.argv,
+                )
+            )
+        if args.terciles:
+            return _print_terciles(
+                run_terciles(
+                    args.test_set,
+                    args.cost_bp,
+                    which=args.policies,
                     argv=argv if argv is not None else sys.argv,
                 )
             )

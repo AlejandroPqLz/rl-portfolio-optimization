@@ -1,0 +1,1691 @@
+{
+  "agent": {
+    "alpha_min": 1.1,
+    "device": "cpu",
+    "log_prob_epsilon": 1e-06,
+    "n_envs": 8,
+    "policy": "DirichletActorCriticPolicy",
+    "ppo": {
+      "batch_size": 64,
+      "clip_range": 0.2,
+      "clip_range_vf": null,
+      "ent_coef": 0.0,
+      "gae_lambda": 0.95,
+      "gamma": 0.99,
+      "learning_rate": 0.0003,
+      "max_grad_norm": 0.5,
+      "n_epochs": 10,
+      "n_steps": 2048,
+      "normalize_advantage": true,
+      "sde_sample_freq": -1,
+      "stats_window_size": 100,
+      "target_kl": null,
+      "use_sde": false,
+      "vf_coef": 0.5
+    }
+  },
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/train.py",
+    "--config",
+    "B_L12",
+    "--seed",
+    "2",
+    "--total-timesteps",
+    "10000000"
+  ],
+  "configuration": "B_L12",
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 2,
+    "torch_version": "2.13.0"
+  },
+  "final_held_out_probability": 0.8955,
+  "git_commit": "d9eaa1da5105439ed8c7b489a0bfc53799fa21d9",
+  "held_out": {
+    "block_length": 12.0,
+    "history": [
+      {
+        "probability_of_reaching_goal": 0.8465,
+        "timesteps": 25000
+      },
+      {
+        "probability_of_reaching_goal": 0.847,
+        "timesteps": 50000
+      },
+      {
+        "probability_of_reaching_goal": 0.8415,
+        "timesteps": 75000
+      },
+      {
+        "probability_of_reaching_goal": 0.832,
+        "timesteps": 100000
+      },
+      {
+        "probability_of_reaching_goal": 0.833,
+        "timesteps": 125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8405,
+        "timesteps": 150000
+      },
+      {
+        "probability_of_reaching_goal": 0.846,
+        "timesteps": 175000
+      },
+      {
+        "probability_of_reaching_goal": 0.8495,
+        "timesteps": 200000
+      },
+      {
+        "probability_of_reaching_goal": 0.8515,
+        "timesteps": 225000
+      },
+      {
+        "probability_of_reaching_goal": 0.854,
+        "timesteps": 250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8535,
+        "timesteps": 275000
+      },
+      {
+        "probability_of_reaching_goal": 0.856,
+        "timesteps": 300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8515,
+        "timesteps": 325000
+      },
+      {
+        "probability_of_reaching_goal": 0.8505,
+        "timesteps": 350000
+      },
+      {
+        "probability_of_reaching_goal": 0.848,
+        "timesteps": 375000
+      },
+      {
+        "probability_of_reaching_goal": 0.853,
+        "timesteps": 400000
+      },
+      {
+        "probability_of_reaching_goal": 0.856,
+        "timesteps": 425000
+      },
+      {
+        "probability_of_reaching_goal": 0.859,
+        "timesteps": 450000
+      },
+      {
+        "probability_of_reaching_goal": 0.8595,
+        "timesteps": 475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8605,
+        "timesteps": 500000
+      },
+      {
+        "probability_of_reaching_goal": 0.8655,
+        "timesteps": 525000
+      },
+      {
+        "probability_of_reaching_goal": 0.8665,
+        "timesteps": 550000
+      },
+      {
+        "probability_of_reaching_goal": 0.866,
+        "timesteps": 575000
+      },
+      {
+        "probability_of_reaching_goal": 0.869,
+        "timesteps": 600000
+      },
+      {
+        "probability_of_reaching_goal": 0.872,
+        "timesteps": 625000
+      },
+      {
+        "probability_of_reaching_goal": 0.8705,
+        "timesteps": 650000
+      },
+      {
+        "probability_of_reaching_goal": 0.8795,
+        "timesteps": 675000
+      },
+      {
+        "probability_of_reaching_goal": 0.8755,
+        "timesteps": 700000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 725000
+      },
+      {
+        "probability_of_reaching_goal": 0.879,
+        "timesteps": 750000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 775000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 800000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 825000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 850000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 875000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 900000
+      },
+      {
+        "probability_of_reaching_goal": 0.8925,
+        "timesteps": 925000
+      },
+      {
+        "probability_of_reaching_goal": 0.8925,
+        "timesteps": 950000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 975000
+      },
+      {
+        "probability_of_reaching_goal": 0.8985,
+        "timesteps": 1000000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 1025000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 1050000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 1075000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 1100000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 1125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 1150000
+      },
+      {
+        "probability_of_reaching_goal": 0.898,
+        "timesteps": 1175000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 1200000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 1225000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 1250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 1275000
+      },
+      {
+        "probability_of_reaching_goal": 0.8945,
+        "timesteps": 1300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 1325000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 1350000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 1375000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 1400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8995,
+        "timesteps": 1425000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 1450000
+      },
+      {
+        "probability_of_reaching_goal": 0.8995,
+        "timesteps": 1475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 1500000
+      },
+      {
+        "probability_of_reaching_goal": 0.8935,
+        "timesteps": 1525000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 1550000
+      },
+      {
+        "probability_of_reaching_goal": 0.9005,
+        "timesteps": 1575000
+      },
+      {
+        "probability_of_reaching_goal": 0.902,
+        "timesteps": 1600000
+      },
+      {
+        "probability_of_reaching_goal": 0.9015,
+        "timesteps": 1625000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 1650000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 1675000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 1700000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 1725000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 1750000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 1775000
+      },
+      {
+        "probability_of_reaching_goal": 0.8945,
+        "timesteps": 1800000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 1825000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 1850000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 1875000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 1900000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 1925000
+      },
+      {
+        "probability_of_reaching_goal": 0.899,
+        "timesteps": 1950000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 1975000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 2000000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 2025000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 2050000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 2075000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 2100000
+      },
+      {
+        "probability_of_reaching_goal": 0.898,
+        "timesteps": 2125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8945,
+        "timesteps": 2150000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 2175000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 2200000
+      },
+      {
+        "probability_of_reaching_goal": 0.893,
+        "timesteps": 2225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8915,
+        "timesteps": 2250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8925,
+        "timesteps": 2275000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 2300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 2325000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 2350000
+      },
+      {
+        "probability_of_reaching_goal": 0.8915,
+        "timesteps": 2375000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 2400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 2425000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 2450000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 2475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 2500000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 2525000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 2550000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 2575000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 2600000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 2625000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 2650000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 2675000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 2700000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 2725000
+      },
+      {
+        "probability_of_reaching_goal": 0.8925,
+        "timesteps": 2750000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 2775000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 2800000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 2825000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 2850000
+      },
+      {
+        "probability_of_reaching_goal": 0.8935,
+        "timesteps": 2875000
+      },
+      {
+        "probability_of_reaching_goal": 0.893,
+        "timesteps": 2900000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 2925000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 2950000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 2975000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 3000000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 3025000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 3050000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 3075000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 3100000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 3125000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 3150000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 3175000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 3200000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 3225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 3250000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 3275000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 3300000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 3325000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 3350000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 3375000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 3400000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 3425000
+      },
+      {
+        "probability_of_reaching_goal": 0.8805,
+        "timesteps": 3450000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 3475000
+      },
+      {
+        "probability_of_reaching_goal": 0.881,
+        "timesteps": 3500000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 3525000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 3550000
+      },
+      {
+        "probability_of_reaching_goal": 0.88,
+        "timesteps": 3575000
+      },
+      {
+        "probability_of_reaching_goal": 0.8805,
+        "timesteps": 3600000
+      },
+      {
+        "probability_of_reaching_goal": 0.8755,
+        "timesteps": 3625000
+      },
+      {
+        "probability_of_reaching_goal": 0.8815,
+        "timesteps": 3650000
+      },
+      {
+        "probability_of_reaching_goal": 0.8815,
+        "timesteps": 3675000
+      },
+      {
+        "probability_of_reaching_goal": 0.8785,
+        "timesteps": 3700000
+      },
+      {
+        "probability_of_reaching_goal": 0.8785,
+        "timesteps": 3725000
+      },
+      {
+        "probability_of_reaching_goal": 0.8775,
+        "timesteps": 3750000
+      },
+      {
+        "probability_of_reaching_goal": 0.877,
+        "timesteps": 3775000
+      },
+      {
+        "probability_of_reaching_goal": 0.8785,
+        "timesteps": 3800000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 3825000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 3850000
+      },
+      {
+        "probability_of_reaching_goal": 0.881,
+        "timesteps": 3875000
+      },
+      {
+        "probability_of_reaching_goal": 0.879,
+        "timesteps": 3900000
+      },
+      {
+        "probability_of_reaching_goal": 0.8785,
+        "timesteps": 3925000
+      },
+      {
+        "probability_of_reaching_goal": 0.8775,
+        "timesteps": 3950000
+      },
+      {
+        "probability_of_reaching_goal": 0.8775,
+        "timesteps": 3975000
+      },
+      {
+        "probability_of_reaching_goal": 0.8765,
+        "timesteps": 4000000
+      },
+      {
+        "probability_of_reaching_goal": 0.8765,
+        "timesteps": 4025000
+      },
+      {
+        "probability_of_reaching_goal": 0.8735,
+        "timesteps": 4050000
+      },
+      {
+        "probability_of_reaching_goal": 0.8775,
+        "timesteps": 4075000
+      },
+      {
+        "probability_of_reaching_goal": 0.8795,
+        "timesteps": 4100000
+      },
+      {
+        "probability_of_reaching_goal": 0.881,
+        "timesteps": 4125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8805,
+        "timesteps": 4150000
+      },
+      {
+        "probability_of_reaching_goal": 0.88,
+        "timesteps": 4175000
+      },
+      {
+        "probability_of_reaching_goal": 0.88,
+        "timesteps": 4200000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 4225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 4250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 4275000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 4300000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 4325000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 4350000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 4375000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 4400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 4425000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 4450000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 4475000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 4500000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 4525000
+      },
+      {
+        "probability_of_reaching_goal": 0.8815,
+        "timesteps": 4550000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 4575000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 4600000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 4625000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 4650000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 4675000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 4700000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 4725000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 4750000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 4775000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 4800000
+      },
+      {
+        "probability_of_reaching_goal": 0.891,
+        "timesteps": 4825000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 4850000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 4875000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 4900000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 4925000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 4950000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 4975000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 5000000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 5025000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 5050000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 5075000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 5100000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 5125000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 5150000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 5175000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 5200000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 5225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 5250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 5275000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 5300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 5325000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 5350000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 5375000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 5400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 5425000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 5450000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 5475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 5500000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 5525000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 5550000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 5575000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 5600000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 5625000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 5650000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 5675000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 5700000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 5725000
+      },
+      {
+        "probability_of_reaching_goal": 0.891,
+        "timesteps": 5750000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 5775000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 5800000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 5825000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 5850000
+      },
+      {
+        "probability_of_reaching_goal": 0.891,
+        "timesteps": 5875000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 5900000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 5925000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 5950000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 5975000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 6000000
+      },
+      {
+        "probability_of_reaching_goal": 0.8815,
+        "timesteps": 6025000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 6050000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 6075000
+      },
+      {
+        "probability_of_reaching_goal": 0.8815,
+        "timesteps": 6100000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 6125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 6150000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 6175000
+      },
+      {
+        "probability_of_reaching_goal": 0.879,
+        "timesteps": 6200000
+      },
+      {
+        "probability_of_reaching_goal": 0.8785,
+        "timesteps": 6225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8795,
+        "timesteps": 6250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8815,
+        "timesteps": 6275000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 6300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 6325000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 6350000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 6375000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 6400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 6425000
+      },
+      {
+        "probability_of_reaching_goal": 0.891,
+        "timesteps": 6450000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 6475000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 6500000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 6525000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 6550000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 6575000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 6600000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 6625000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 6650000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 6675000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 6700000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 6725000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 6750000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 6775000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 6800000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 6825000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 6850000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 6875000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 6900000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 6925000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 6950000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 6975000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 7000000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 7025000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 7050000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 7075000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 7100000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 7125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 7150000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 7175000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 7200000
+      },
+      {
+        "probability_of_reaching_goal": 0.886,
+        "timesteps": 7225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8835,
+        "timesteps": 7250000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 7275000
+      },
+      {
+        "probability_of_reaching_goal": 0.884,
+        "timesteps": 7300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 7325000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 7350000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 7375000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 7400000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 7425000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 7450000
+      },
+      {
+        "probability_of_reaching_goal": 0.882,
+        "timesteps": 7475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8825,
+        "timesteps": 7500000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 7525000
+      },
+      {
+        "probability_of_reaching_goal": 0.8855,
+        "timesteps": 7550000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 7575000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 7600000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 7625000
+      },
+      {
+        "probability_of_reaching_goal": 0.887,
+        "timesteps": 7650000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 7675000
+      },
+      {
+        "probability_of_reaching_goal": 0.885,
+        "timesteps": 7700000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 7725000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 7750000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 7775000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 7800000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 7825000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 7850000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 7875000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 7900000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 7925000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 7950000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 7975000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 8000000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 8025000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 8050000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 8075000
+      },
+      {
+        "probability_of_reaching_goal": 0.883,
+        "timesteps": 8100000
+      },
+      {
+        "probability_of_reaching_goal": 0.8845,
+        "timesteps": 8125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8865,
+        "timesteps": 8150000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 8175000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 8200000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 8225000
+      },
+      {
+        "probability_of_reaching_goal": 0.888,
+        "timesteps": 8250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8875,
+        "timesteps": 8275000
+      },
+      {
+        "probability_of_reaching_goal": 0.8885,
+        "timesteps": 8300000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 8325000
+      },
+      {
+        "probability_of_reaching_goal": 0.8905,
+        "timesteps": 8350000
+      },
+      {
+        "probability_of_reaching_goal": 0.893,
+        "timesteps": 8375000
+      },
+      {
+        "probability_of_reaching_goal": 0.891,
+        "timesteps": 8400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8945,
+        "timesteps": 8425000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 8450000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 8475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 8500000
+      },
+      {
+        "probability_of_reaching_goal": 0.89,
+        "timesteps": 8525000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 8550000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 8575000
+      },
+      {
+        "probability_of_reaching_goal": 0.8935,
+        "timesteps": 8600000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 8625000
+      },
+      {
+        "probability_of_reaching_goal": 0.8915,
+        "timesteps": 8650000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 8675000
+      },
+      {
+        "probability_of_reaching_goal": 0.889,
+        "timesteps": 8700000
+      },
+      {
+        "probability_of_reaching_goal": 0.8895,
+        "timesteps": 8725000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 8750000
+      },
+      {
+        "probability_of_reaching_goal": 0.8935,
+        "timesteps": 8775000
+      },
+      {
+        "probability_of_reaching_goal": 0.8945,
+        "timesteps": 8800000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 8825000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 8850000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 8875000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 8900000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 8925000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 8950000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 8975000
+      },
+      {
+        "probability_of_reaching_goal": 0.898,
+        "timesteps": 9000000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 9025000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 9050000
+      },
+      {
+        "probability_of_reaching_goal": 0.898,
+        "timesteps": 9075000
+      },
+      {
+        "probability_of_reaching_goal": 0.899,
+        "timesteps": 9100000
+      },
+      {
+        "probability_of_reaching_goal": 0.898,
+        "timesteps": 9125000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 9150000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 9175000
+      },
+      {
+        "probability_of_reaching_goal": 0.894,
+        "timesteps": 9200000
+      },
+      {
+        "probability_of_reaching_goal": 0.8925,
+        "timesteps": 9225000
+      },
+      {
+        "probability_of_reaching_goal": 0.8935,
+        "timesteps": 9250000
+      },
+      {
+        "probability_of_reaching_goal": 0.8925,
+        "timesteps": 9275000
+      },
+      {
+        "probability_of_reaching_goal": 0.892,
+        "timesteps": 9300000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 9325000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 9350000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 9375000
+      },
+      {
+        "probability_of_reaching_goal": 0.895,
+        "timesteps": 9400000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 9425000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 9450000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 9475000
+      },
+      {
+        "probability_of_reaching_goal": 0.8985,
+        "timesteps": 9500000
+      },
+      {
+        "probability_of_reaching_goal": 0.8985,
+        "timesteps": 9525000
+      },
+      {
+        "probability_of_reaching_goal": 0.898,
+        "timesteps": 9550000
+      },
+      {
+        "probability_of_reaching_goal": 0.901,
+        "timesteps": 9575000
+      },
+      {
+        "probability_of_reaching_goal": 0.8985,
+        "timesteps": 9600000
+      },
+      {
+        "probability_of_reaching_goal": 0.899,
+        "timesteps": 9625000
+      },
+      {
+        "probability_of_reaching_goal": 0.899,
+        "timesteps": 9650000
+      },
+      {
+        "probability_of_reaching_goal": 0.9015,
+        "timesteps": 9675000
+      },
+      {
+        "probability_of_reaching_goal": 0.904,
+        "timesteps": 9700000
+      },
+      {
+        "probability_of_reaching_goal": 0.9005,
+        "timesteps": 9725000
+      },
+      {
+        "probability_of_reaching_goal": 0.9005,
+        "timesteps": 9750000
+      },
+      {
+        "probability_of_reaching_goal": 0.9015,
+        "timesteps": 9775000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 9800000
+      },
+      {
+        "probability_of_reaching_goal": 0.899,
+        "timesteps": 9825000
+      },
+      {
+        "probability_of_reaching_goal": 0.897,
+        "timesteps": 9850000
+      },
+      {
+        "probability_of_reaching_goal": 0.8985,
+        "timesteps": 9875000
+      },
+      {
+        "probability_of_reaching_goal": 0.896,
+        "timesteps": 9900000
+      },
+      {
+        "probability_of_reaching_goal": 0.8965,
+        "timesteps": 9925000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 9950000
+      },
+      {
+        "probability_of_reaching_goal": 0.9,
+        "timesteps": 9975000
+      },
+      {
+        "probability_of_reaching_goal": 0.8975,
+        "timesteps": 10000000
+      },
+      {
+        "probability_of_reaching_goal": 0.8955,
+        "timesteps": 10010624
+      }
+    ],
+    "mode": "B",
+    "n_scenarios": 2000,
+    "seed": 1002
+  },
+  "improvement_over_random": 0.24849999999999994,
+  "problem": {
+    "cost_bp": 10.0,
+    "goal_usd": 60000.0,
+    "horizon_months": 120,
+    "monthly_contribution_usd": 400.0,
+    "objective": "lpm2"
+  },
+  "random_policy_probability": 0.647,
+  "seconds_elapsed": 1043.2762162499712,
+  "seconds_per_100k_steps": 10.421690158874924,
+  "seed": 2,
+  "shaping": false,
+  "status": "preliminary until the figures freeze",
+  "total_timesteps": 10010624,
+  "training_env_seeds": [
+    200,
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207
+  ],
+  "written_at_utc": "2026-10-10T12:40:46+00:00"
+}

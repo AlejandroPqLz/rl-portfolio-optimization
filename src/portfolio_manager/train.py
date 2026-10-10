@@ -73,6 +73,18 @@ from portfolio_manager.generator import config_path, generate, git_commit, load_
 # =====================================================================
 RUNS_DIRECTORY = Path("results/runs")
 
+
+def run_directory_name(configuration: str, cost_bp: float) -> str:
+    """Directory of one training configuration, naming the cost it was trained under.
+
+    The transaction cost changes the optimal policy and not merely the score of a given one, so an
+    agent trained at ten basis points is a different agent from one trained at zero. Two such runs
+    under one name would be indistinguishable once the terminal that launched them is gone, and the
+    sweep over the cost exists precisely to put them side by side.
+    """
+    return f"{configuration}_{cost_bp:g}bp"
+
+
 TRAINING_BAND = (0, 999)
 """Seeds reserved for training streams, disjoint from validation and test (D23)."""
 
@@ -284,6 +296,7 @@ def make_training_env(
     n_envs: int,
     *,
     problem: ProblemConfig | None = None,
+    cost_rate: float | None = None,
     shaping: bool = False,
     shaping_gamma: float | None = None,
 ) -> VecEnv:
@@ -298,6 +311,8 @@ def make_training_env(
         seed: Seed of the run, inside the training band.
         n_envs: Number of sub-environments.
         problem: Base case; read from configuration when omitted.
+        cost_rate: Overrides ``lambda``. The agent must be trained under the cost it will face,
+            because the cost changes the optimal policy and not merely the score.
         shaping: Whether to add the potential-based term.
         shaping_gamma: Discount of that term; must equal the one PPO uses.
 
@@ -319,6 +334,7 @@ def make_training_env(
                     generator_spec=spec,
                     seed=seed * ENV_SEED_STRIDE + index,
                     problem=problem,
+                    cost_rate=cost_rate,
                     shaping=shaping,
                     shaping_gamma=shaping_gamma,
                 )
@@ -394,17 +410,22 @@ class HeldOutEvaluation(BaseCallback):
         n_envs: int,
         random_value: float,
         verbose: int = 0,
+        *,
+        cost_rate: float | None = None,
     ) -> None:
         super().__init__(verbose)
         self.scenarios = scenarios
         self.problem = problem
+        self.cost_rate = cost_rate
         # The callback fires once per vectorised step, which advances n_envs environments.
         self.every_n_calls = max(1, eval_freq // max(n_envs, 1))
         self.random_value = random_value
         self.history: list[dict[str, float]] = []
 
     def _evaluate(self) -> float:
-        value = probability_of_reaching_goal(self.scenarios, policy_from_model(self.model), self.problem)
+        value = probability_of_reaching_goal(
+            self.scenarios, policy_from_model(self.model), self.problem, self.cost_rate
+        )
         self.history.append({"timesteps": int(self.num_timesteps), "probability_of_reaching_goal": value})
         self.logger.record("held_out/probability_of_reaching_goal", value)
         self.logger.record("held_out/random_policy", self.random_value)
@@ -428,6 +449,7 @@ def train(
     seed: int,
     total_timesteps: int | None = None,
     *,
+    cost_bp: float | None = None,
     shaping: bool = False,
     agent: AgentConfig | None = None,
     problem: ProblemConfig | None = None,
@@ -441,6 +463,7 @@ def train(
         configuration: Key of the frozen recipe supplying the generator mode and block length.
         seed: Seed of the run, inside the training band.
         total_timesteps: Length of the run; the configured default when omitted.
+        cost_bp: Transaction cost the agent is trained under; the base case when omitted.
         shaping: Whether to add the potential-based term. Diagnostic only (D74, A40).
         agent: Agent configuration; read from ``config/ppo.yml`` when omitted.
         problem: Base case; read from configuration when omitted.
@@ -454,6 +477,8 @@ def train(
     agent = agent or load_agent_config()
     problem = problem or load_problem()
     total_timesteps = int(total_timesteps if total_timesteps is not None else agent.total_timesteps)
+    effective_bp = problem.cost_bp if cost_bp is None else float(cost_bp)
+    cost_rate = effective_bp * 1e-4
     recipe = load_test_set()
     spec = GeneratorSpec.from_test_set(configuration, recipe)
 
@@ -473,9 +498,10 @@ def train(
         held_out,
         uniform_simplex_policy(np.random.default_rng(validation_seed), int(held_out.shape[2])),
         problem,
+        cost_rate,
     )
 
-    output = runs_directory / configuration / f"seed_{seed}"
+    output = runs_directory / run_directory_name(configuration, effective_bp) / f"seed_{seed}"
     output.mkdir(parents=True, exist_ok=True)
 
     environment = make_training_env(
@@ -483,6 +509,7 @@ def train(
         seed,
         agent.n_envs,
         problem=problem,
+        cost_rate=cost_rate,
         shaping=shaping,
         shaping_gamma=agent.gamma if shaping else None,
     )
@@ -497,7 +524,9 @@ def train(
         **agent.ppo,
     )
 
-    callback = HeldOutEvaluation(held_out, problem, agent.eval_freq, agent.n_envs, random_value)
+    callback = HeldOutEvaluation(
+        held_out, problem, agent.eval_freq, agent.n_envs, random_value, cost_rate=cost_rate
+    )
     started = time.perf_counter()
     model.learn(total_timesteps=total_timesteps, callback=callback, progress_bar=progress_bar)
     elapsed = time.perf_counter() - started
@@ -507,7 +536,9 @@ def train(
     final_value = callback.history[-1]["probability_of_reaching_goal"]
     metrics = {
         "configuration": configuration,
+        "run_directory": run_directory_name(configuration, effective_bp),
         "seed": seed,
+        "cost_bp": effective_bp,
         "shaping": shaping,
         "total_timesteps": int(model.num_timesteps),
         "seconds_elapsed": elapsed,
@@ -535,7 +566,7 @@ def train(
             "goal_usd": problem.goal_usd,
             "horizon_months": problem.horizon_months,
             "monthly_contribution_usd": problem.monthly_contribution_usd,
-            "cost_bp": problem.cost_bp,
+            "cost_bp": effective_bp,
             "objective": problem.objective,
         },
         "command_line": argv if argv is not None else sys.argv,
@@ -556,6 +587,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", required=True, help="configuration of the frozen recipe, e.g. A_gbm or B_L12")
     parser.add_argument("--seed", type=int, required=True, help=f"training seed, inside the band {TRAINING_BAND}")
     parser.add_argument("--total-timesteps", type=int, default=None, help="length of the run")
+    parser.add_argument(
+        "--cost-bp", type=float, default=None, help="transaction cost to train under; the base case when omitted"
+    )
     parser.add_argument("--shaping", action="store_true", help="add the potential-based term (diagnostic, D74)")
     parser.add_argument("--progress-bar", action="store_true", help="show a progress bar")
     args = parser.parse_args(argv)
@@ -565,6 +599,7 @@ def main(argv: list[str] | None = None) -> int:
             args.config,
             args.seed,
             args.total_timesteps,
+            cost_bp=args.cost_bp,
             shaping=args.shaping,
             argv=argv if argv is not None else sys.argv,
             progress_bar=args.progress_bar,
@@ -573,13 +608,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
 
-    print(f"config {metrics['configuration']}  seed {metrics['seed']}  shaping {metrics['shaping']}")
+    print(
+        f"config {metrics['configuration']}  cost {metrics['cost_bp']:g} bp  "
+        f"seed {metrics['seed']}  shaping {metrics['shaping']}"
+    )
     print(f"{metrics['total_timesteps']:,} steps in {metrics['seconds_elapsed']:.1f} s")
     print(f"seconds per 100k steps        {metrics['seconds_per_100k_steps']:.1f}")
     print(f"held-out P(W_T >= G)          {metrics['final_held_out_probability']:.4f}")
     print(f"random policy, same scenarios {metrics['random_policy_probability']:.4f}")
     print(f"improvement over random       {metrics['improvement_over_random']:+.4f}")
-    print(f"\nwrote {RUNS_DIRECTORY / metrics['configuration'] / f'seed_{metrics['seed']}'}")
+    print(f"\nwrote {RUNS_DIRECTORY / metrics['run_directory'] / f'seed_{metrics['seed']}'}")
     print("PRELIMINARY: not frozen until the code freeze of 10 October.")
     return 0
 

@@ -33,6 +33,7 @@ from portfolio_manager.train import (
     make_training_env,
     policy_from_model,
     probability_of_reaching_goal,
+    run_directory_name,
     train,
     uniform_simplex_policy,
 )
@@ -373,7 +374,10 @@ def test_a_short_run_writes_everything_needed_to_read_it(tmp_path):
     without the terminal it was launched from are what this asserts.
     """
     metrics = train("A_gbm", SEED, 2048, runs_directory=tmp_path, argv=["test"])
-    output = tmp_path / "A_gbm" / f"seed_{SEED}"
+    # The directory names the cost the agent was trained under, so two runs at different costs
+    # cannot be confused once the terminal that launched them is gone.
+    output = tmp_path / metrics["run_directory"] / f"seed_{SEED}"
+    assert metrics["run_directory"] == run_directory_name("A_gbm", metrics["cost_bp"])
 
     assert (output / "policy.zip").is_file()
     assert (output / "tensorboard").is_dir()
@@ -400,9 +404,9 @@ def test_a_short_run_writes_everything_needed_to_read_it(tmp_path):
 @pytest.mark.slow
 def test_a_saved_policy_can_be_reloaded_and_scored(tmp_path):
     """The batch saves policies on one night and they are read on another."""
-    train("A_gbm", SEED, 2048, runs_directory=tmp_path, argv=["test"])
+    metrics = train("A_gbm", SEED, 2048, runs_directory=tmp_path, argv=["test"])
     reloaded = PPO.load(
-        tmp_path / "A_gbm" / f"seed_{SEED}" / "policy.zip",
+        tmp_path / metrics["run_directory"] / f"seed_{SEED}" / "policy.zip",
         device="cpu",
         custom_objects={"policy_class": DirichletActorCriticPolicy},
     )
@@ -415,4 +419,5 @@ def test_the_shaping_run_leaves_the_wealth_dynamics_alone(tmp_path):
     """The diagnostic of D74 must change the signal and not the problem."""
     metrics = train("A_gbm", SEED, 2048, shaping=True, runs_directory=tmp_path, argv=["test"])
     assert metrics["shaping"] is True
+    assert metrics["cost_bp"] == load_problem().cost_bp
     assert 0.0 <= metrics["final_held_out_probability"] <= 1.0

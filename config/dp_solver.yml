@@ -39,7 +39,18 @@ meta:
 # Remaining contributions need no nodes of their own. In the base case the
 # contribution is constant, so the third component of the state is a
 # deterministic function of the second and one node per instant suffices.
-n_wealth: 401
+# REFINED ON 2026-10-10, from 401 nodes and 5 quadrature nodes, under the
+# remedy subsection 4.3.6 itself prescribes: "si alguna de las comprobaciones
+# no se supera, la malla de referencia se refina antes de utilizar la tabla y
+# el cambio queda registrado". The policy stability check did not pass at the
+# original resolution, so the reference grid is the one the check was being run
+# against, and the check now compares it against the level above.
+#
+# What the earlier resolution reported, for the record: agreement of 0.69
+# against the 0.95 required, with the value check passing at |dV| = 2.3e-04
+# against a tolerance of 5e-03, and the disagreeing portfolios worth at most
+# 3.5e-06 less. No threshold was changed.
+n_wealth: 801
 wealth_max_over_goal: 4.0
 interpolation: linear
 
@@ -55,7 +66,7 @@ action_step: 0.05
 # each, 625 return vectors. Factors with zero variance receive no nodes, which
 # is what keeps the Browne validation configuration tractable: three riskless
 # assets there reduce the product to the five nodes of the single risky factor.
-n_quad: 5
+n_quad: 7
 
 # --- The problem being solved ------------------------------------------------
 # objective: `lpm2` in the experimental configuration, `indicator` in the
@@ -115,8 +126,8 @@ tie_tolerance: 1.0e-12
 #   the maximum norm. The nodes are those the test-set trajectories actually
 #   visit, because agreement in a region no trajectory reaches says nothing.
 stability:
-  n_wealth: 801
-  n_quad: 7
+  n_wealth: 1601
+  n_quad: 9
   value_tol: 0.005
   policy_agreement: 0.95
 

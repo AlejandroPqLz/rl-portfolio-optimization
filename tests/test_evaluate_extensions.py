@@ -40,6 +40,8 @@ from portfolio_manager.generator import GbmParams, generate, load_matrix, load_m
 # =====================================================================
 SEED = 1000
 RUNS = "results/runs"
+UNTRAINED = "B_L6"
+"""A configuration of the frozen recipe that is contingent and has never been trained."""
 
 
 # ======================================================================================
@@ -50,7 +52,9 @@ def smoke_run(tmp_path_factory) -> object:
     """A trained policy to wrap. Reuses the one in the tree, and trains a short one otherwise."""
     from pathlib import Path
 
-    existing = Path(RUNS) / "A_gbm" / "seed_0" / "policy.zip"
+    from portfolio_manager.train import run_directory_name
+
+    existing = Path(RUNS) / run_directory_name("A_gbm", load_problem().cost_bp) / "seed_0" / "policy.zip"
     if existing.is_file():
         return existing
     from portfolio_manager.train import train
@@ -91,7 +95,9 @@ def test_the_trained_seeds_are_discovered_and_ordered():
 
 def test_an_untrained_configuration_yields_no_policies():
     """Not an error: the batch has not reached that configuration yet."""
-    assert trained_policies("B_L24") == {}
+    assert trained_policies(UNTRAINED) == {}
+    # Nor has it reached this one at a cost it was never trained under.
+    assert trained_policies("A_gbm", train_cost_bp=25.0) == {}
 
 
 def test_the_table_is_offered_when_the_solver_has_produced_one():
@@ -482,4 +488,4 @@ def test_the_tabulated_optimum_beats_the_comparators_on_its_own_objective(tmp_pa
 def test_an_empty_policy_set_is_reported(tmp_path):
     """Asking for an agent the batch has not trained yet must say so."""
     with pytest.raises(ValueError, match="no policies to score"):
-        run("B_L24", 0.0, seed=SEED, which="agent", n_bootstrap=100, results_directory=tmp_path)
+        run(UNTRAINED, 0.0, seed=SEED, which="agent", n_bootstrap=100, results_directory=tmp_path)

@@ -81,19 +81,39 @@ def solution(small, params, problem) -> Solution:
 # ======================================================================================
 # The declared discretisation
 # ======================================================================================
-def test_the_configuration_is_the_one_the_thesis_declares(full_config):
-    """Thesis 4.3.6 fixes all three resolutions and both stability thresholds."""
-    assert full_config.n_wealth == 401
+def test_the_reference_grid_was_refined_as_the_thesis_prescribes(full_config):
+    """Subsection 4.3.6 fixes 401 nodes and 5 quadrature nodes, and also fixes what to do when the
+    checks at that resolution do not pass: refine the reference grid before using the table and
+    record the change.
+
+    The policy check did not pass at the original resolution, so the reference is now the grid the
+    check was being run against and the check compares it against the level above. The thresholds
+    are untouched; what moved is the resolution, which is the remedy the subsection names.
+    """
+    assert full_config.n_wealth == 801
+    assert full_config.n_quad == 7
     assert full_config.wealth_max_over_goal == 4.0
     assert full_config.action_step == 0.05
-    assert full_config.n_quad == 5
     assert full_config.interpolation == "linear"
     assert full_config.stability == {
-        "n_wealth": 801,
-        "n_quad": 7,
+        "n_wealth": 1601,
+        "n_quad": 9,
         "value_tol": 0.005,
         "policy_agreement": 0.95,
     }
+
+
+def test_the_acceptance_thresholds_were_not_moved(full_config):
+    """The one thing the remedy must not do: changing a threshold after seeing it fail is what
+    D47 exists to prevent, so the two figures are pinned separately from the resolution."""
+    assert full_config.stability["value_tol"] == 0.005
+    assert full_config.stability["policy_agreement"] == 0.95
+
+
+def test_the_refinement_is_strictly_finer(full_config):
+    """The comparison is only meaningful against a grid that resolves more, on both axes."""
+    assert full_config.stability["n_wealth"] > full_config.n_wealth
+    assert full_config.stability["n_quad"] > full_config.n_quad
 
 
 def test_the_table_is_computed_without_transaction_costs(full_config):
@@ -601,16 +621,19 @@ def test_the_declared_grid_passes_the_value_stability_check(declared_stability):
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "The policy stability criterion of thesis 4.3.6 is not met: agreement is 0.69 against the "
-        "0.95 required. The disagreement is not a discretisation error. The value check passes by a "
-        "factor of 22, and playing the refined table's portfolio in the reference problem costs at "
-        "most 3.5e-06, a thousandth of the value tolerance, so the two tables implement the same "
-        "strategy and differ only in which of several near-equivalent portfolios they name. The "
-        "criterion measures how flat the objective is in the action, not how coarse the grid is, "
-        "and refining the grid would not move it. Whether to restate the criterion in value terms, "
-        "refine anyway as 4.3.6 prescribes, or report the failure, is the author's decision and must "
-        "be recorded as one: changing an acceptance threshold after seeing it fail is exactly what "
-        "D47 exists to prevent. Marked strict, so this turns red the moment the verdict changes."
+        "The policy stability criterion of thesis 4.3.6 is still not met after the refinement the "
+        "subsection prescribes: agreement is 0.903 against the 0.95 required, at 801 nodes and 7 "
+        "quadrature nodes against 1601 and 9. Refining did help, and substantially: agreement rose "
+        "from 0.691, the value difference fell from 2.3e-04 to 5.3e-05, and the cost of the "
+        "disagreement fell from 3.5e-06 to 1.4e-06. What remains is not a discretisation error. The "
+        "value check now passes by a factor of ninety-four, and playing the refined table's "
+        "portfolio in the reference problem costs at most 1.4e-06, which is a four-thousandth of "
+        "the value tolerance, so the two tables implement the same strategy and differ only in "
+        "which of several near-equivalent portfolios they name. The criterion is measuring how flat "
+        "the objective is in the action. Whether to refine once more, restate the criterion in "
+        "value terms, or report the failure is the author's decision and must be recorded as one: "
+        "changing an acceptance threshold after seeing it fail is what D47 exists to prevent. "
+        "Marked strict, so this turns red the moment the verdict changes."
     ),
 )
 def test_the_declared_grid_passes_the_policy_stability_check(declared_stability):

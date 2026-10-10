@@ -1,0 +1,61 @@
+{
+  "command_line": [
+    "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/evaluate.py",
+    "--terciles",
+    "--policies",
+    "all",
+    "--test-set",
+    "A_gbm",
+    "--cost-bp",
+    "0"
+  ],
+  "config_sha256": {
+    "baselines": "fac122ba209e0467f61bd81d363d70ad160e44dc37fce68b9f7a8d8cadf4950c",
+    "problem": "0d871015a7f056a7201125ce7fa9708dfb29fcf50116990c89933c7bb9febb67",
+    "test_set": "40c366886f8a169afe7162e3727aef35865ef4c27a8947db76624a3c8ceaf5b0"
+  },
+  "cost_bp": 0.0,
+  "effective_seed": 20260809,
+  "environment_differences": [],
+  "environment_fingerprint": {
+    "blas_backend": "accelerate",
+    "device": "cpu",
+    "gymnasium_version": "1.3.0",
+    "machine": "arm64",
+    "mps_available": true,
+    "numpy_version": "2.5.1",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "stable_baselines3_version": "2.9.0",
+    "torch_num_threads": 6,
+    "torch_version": "2.13.0"
+  },
+  "frozen_digest_verdict": "match",
+  "git_commit": "d9eaa1da5105439ed8c7b489a0bfc53799fa21d9",
+  "horizon_months": 120,
+  "mean_block_length_months": null,
+  "midpoint_month": 60,
+  "mode": "A",
+  "n_scenarios": 20000,
+  "policies": "all",
+  "policy_names": [
+    "constant_mix",
+    "glide_path",
+    "merton_gamma_2",
+    "merton_gamma_5",
+    "equal_weight",
+    "dp_table",
+    "agent_seed_0",
+    "agent_seed_1",
+    "agent_seed_2",
+    "agent_seed_3",
+    "agent_seed_4"
+  ],
+  "result_file": "results/terciles_A_gbm_0bp.json",
+  "source_matrix_sha256": "a8cfe558c894af271d2064d5cd031cd7ad18d22bd1de29332e8f10cef0ff4eca",
+  "status": "preliminary until the figures freeze",
+  "tensor_sha256": "9dd8165be1235dfb2e5752a3ad7581360a72084e12f51c617f9a4297065fea99",
+  "test_set": "A_gbm",
+  "written_at_utc": "2026-10-10T16:28:22+00:00"
+}
