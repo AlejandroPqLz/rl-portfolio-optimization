@@ -1,0 +1,45 @@
+config A_gbm  cost 0 bp  seed 0  shaping False
+10,010,624 steps in 1008.6 s
+seconds per 100k steps        10.1
+held-out P(W_T >= G)          0.8975
+random policy, same scenarios 0.7890
+improvement over random       +0.1085
+
+wrote results/runs/A_gbm_0bp/seed_0
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  cost 0 bp  seed 1  shaping False
+10,010,624 steps in 1157.5 s
+seconds per 100k steps        11.6
+held-out P(W_T >= G)          0.8865
+random policy, same scenarios 0.8045
+improvement over random       +0.0820
+
+wrote results/runs/A_gbm_0bp/seed_1
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  cost 0 bp  seed 2  shaping False
+10,010,624 steps in 1012.5 s
+seconds per 100k steps        10.1
+held-out P(W_T >= G)          0.8975
+random policy, same scenarios 0.8035
+improvement over random       +0.0940
+
+wrote results/runs/A_gbm_0bp/seed_2
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  cost 0 bp  seed 3  shaping False
+10,010,624 steps in 1222.1 s
+seconds per 100k steps        12.2
+held-out P(W_T >= G)          0.9000
+random policy, same scenarios 0.7860
+improvement over random       +0.1140
+
+wrote results/runs/A_gbm_0bp/seed_3
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  cost 0 bp  seed 4  shaping False
+10,010,624 steps in 991.1 s
+seconds per 100k steps        9.9
+held-out P(W_T >= G)          0.9065
+random policy, same scenarios 0.8050
+improvement over random       +0.1015
+
+wrote results/runs/A_gbm_0bp/seed_4
+PRELIMINARY: not frozen until the code freeze of 10 October.

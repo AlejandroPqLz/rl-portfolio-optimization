@@ -1,0 +1,45 @@
+config B_L12  seed 0  shaping False
+10,010,624 steps in 1052.9 s
+seconds per 100k steps        10.5
+held-out P(W_T >= G)          0.9190
+random policy, same scenarios 0.6625
+improvement over random       +0.2565
+
+wrote results/runs/B_L12/seed_0
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config B_L12  seed 1  shaping False
+10,010,624 steps in 1040.8 s
+seconds per 100k steps        10.4
+held-out P(W_T >= G)          0.9080
+random policy, same scenarios 0.6555
+improvement over random       +0.2525
+
+wrote results/runs/B_L12/seed_1
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config B_L12  seed 2  shaping False
+10,010,624 steps in 1043.3 s
+seconds per 100k steps        10.4
+held-out P(W_T >= G)          0.8955
+random policy, same scenarios 0.6470
+improvement over random       +0.2485
+
+wrote results/runs/B_L12/seed_2
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config B_L12  seed 3  shaping False
+10,010,624 steps in 1047.2 s
+seconds per 100k steps        10.5
+held-out P(W_T >= G)          0.9180
+random policy, same scenarios 0.6540
+improvement over random       +0.2640
+
+wrote results/runs/B_L12/seed_3
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config B_L12  seed 4  shaping False
+10,010,624 steps in 1040.3 s
+seconds per 100k steps        10.4
+held-out P(W_T >= G)          0.8970
+random policy, same scenarios 0.6605
+improvement over random       +0.2365
+
+wrote results/runs/B_L12/seed_4
+PRELIMINARY: not frozen until the code freeze of 10 October.

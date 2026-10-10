@@ -1,0 +1,45 @@
+config A_gbm  seed 0  shaping False
+10,010,624 steps in 1055.0 s
+seconds per 100k steps        10.5
+held-out P(W_T >= G)          0.9180
+random policy, same scenarios 0.6555
+improvement over random       +0.2625
+
+wrote results/runs/A_gbm/seed_0
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  seed 1  shaping False
+10,010,624 steps in 1045.2 s
+seconds per 100k steps        10.4
+held-out P(W_T >= G)          0.9020
+random policy, same scenarios 0.6560
+improvement over random       +0.2460
+
+wrote results/runs/A_gbm/seed_1
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  seed 2  shaping False
+10,010,624 steps in 1038.2 s
+seconds per 100k steps        10.4
+held-out P(W_T >= G)          0.8925
+random policy, same scenarios 0.6560
+improvement over random       +0.2365
+
+wrote results/runs/A_gbm/seed_2
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  seed 3  shaping False
+10,010,624 steps in 1048.9 s
+seconds per 100k steps        10.5
+held-out P(W_T >= G)          0.9050
+random policy, same scenarios 0.6470
+improvement over random       +0.2580
+
+wrote results/runs/A_gbm/seed_3
+PRELIMINARY: not frozen until the code freeze of 10 October.
+config A_gbm  seed 4  shaping False
+10,010,624 steps in 1055.2 s
+seconds per 100k steps        10.5
+held-out P(W_T >= G)          0.8495
+random policy, same scenarios 0.6500
+improvement over random       +0.1995
+
+wrote results/runs/A_gbm/seed_4
+PRELIMINARY: not frozen until the code freeze of 10 October.
