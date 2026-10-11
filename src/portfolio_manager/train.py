@@ -81,6 +81,17 @@ def run_directory_name(configuration: str, cost_bp: float) -> str:
     agent trained at ten basis points is a different agent from one trained at zero. Two such runs
     under one name would be indistinguishable once the terminal that launched them is gone, and the
     sweep over the cost exists precisely to put them side by side.
+
+    The name carries the configuration and the training cost only; the shaping flag is not part of
+    it, so a shaped run writes into the same directory as the unshaped run of the same seed and cost
+    and is told apart only by the ``shaping`` field of its ``metrics.json``.
+
+    Args:
+        configuration: Key of the frozen recipe in ``config/test_set.yml``, e.g. ``A_gbm``.
+        cost_bp: Transaction cost the agent was trained under, in basis points.
+
+    Returns:
+        The directory name ``<configuration>_<cost_bp>bp``, e.g. ``A_gbm_10bp``.
     """
     return f"{configuration}_{cost_bp:g}bp"
 
@@ -125,12 +136,28 @@ class AgentConfig:
 
     @property
     def gamma(self) -> float:
-        """The discount the algorithm optimises with, which the shaping term must match."""
+        """The discount the algorithm optimises with, which the shaping term must match.
+
+        Returns:
+            PPO's ``gamma`` from the ``ppo`` block of ``config/ppo.yml``.
+        """
         return float(self.ppo["gamma"])
 
 
 def load_agent_config(path: Path | None = None) -> AgentConfig:
-    """Read ``config/ppo.yml``."""
+    """Read ``config/ppo.yml``.
+
+    Args:
+        path: File to read; ``config/ppo.yml`` when omitted.
+
+    Returns:
+        The agent configuration: the ``ppo`` block passed through as is, the ``policy`` block
+        (``alpha_min``, ``log_prob_epsilon``) and the run-level keys.
+
+    Raises:
+        FileNotFoundError: If the file does not exist; no hyperparameter has a default in code.
+        ValueError: If ``alpha_min`` is not strictly above one.
+    """
     path = path or config_path("ppo")
     if not path.is_file():
         raise FileNotFoundError(f"{path} not found: no hyperparameter has a default in code")
@@ -173,6 +200,16 @@ class DirichletDistribution(Distribution):
     """
 
     def __init__(self, action_dim: int, alpha_min: float, epsilon: float = 1e-6) -> None:
+        """Store the dimensions; the concentration is set later by :meth:`proba_distribution`.
+
+        Args:
+            action_dim: Number of assets.
+            alpha_min: Lower bound of the concentration, strictly above one (``config/ppo.yml``).
+            epsilon: Clamp applied before evaluating a log-probability.
+
+        Raises:
+            ValueError: If ``alpha_min`` is not strictly above one.
+        """
         super().__init__()
         if alpha_min <= 1.0:
             raise ValueError(f"alpha_min must be strictly above one (D57), got {alpha_min}")
@@ -181,7 +218,14 @@ class DirichletDistribution(Distribution):
         self.epsilon = float(epsilon)
 
     def proba_distribution_net(self, latent_dim: int) -> nn.Module:
-        """The layer producing the logits behind the concentration."""
+        """The layer producing the logits behind the concentration.
+
+        Args:
+            latent_dim: Width of the policy latent code.
+
+        Returns:
+            A linear layer from the latent code to one logit per asset.
+        """
         return nn.Linear(latent_dim, self.action_dim)
 
     def proba_distribution(self, action_logits: th.Tensor) -> "DirichletDistribution":
@@ -192,13 +236,23 @@ class DirichletDistribution(Distribution):
         at the boundary. Validation is disabled on the underlying distribution because the actions
         handed back by the rollout buffer are stored in single precision and their components sum
         to one only to within that precision; :meth:`log_prob` renormalises them instead.
+
+        Args:
+            action_logits: Network output, one logit per asset, with a leading batch axis.
+
+        Returns:
+            This distribution, now parameterised.
         """
         self.distribution = Dirichlet(nn.functional.softplus(action_logits) + self.alpha_min, validate_args=False)
         return self
 
     @property
     def concentration(self) -> th.Tensor:
-        """The concentration vector currently parameterising the distribution."""
+        """The concentration vector currently parameterising the distribution.
+
+        Returns:
+            ``alpha``, one positive entry per asset, each at least ``alpha_min``.
+        """
         return self.distribution.concentration
 
     def log_prob(self, actions: th.Tensor) -> th.Tensor:
@@ -209,6 +263,12 @@ class DirichletDistribution(Distribution):
         reaches. Left alone it would return minus infinity, which propagates through the ratio into
         the gradient and ends the run. Clamping to ``[eps, 1 - eps]`` and renormalising moves the
         action by at most a few parts in a million and keeps the quantity finite.
+
+        Args:
+            actions: Portfolio weights, last axis over assets.
+
+        Returns:
+            The log-density of each clamped, renormalised action.
         """
         clamped = th.clamp(actions, self.epsilon, 1.0 - self.epsilon)
         return self.distribution.log_prob(clamped / clamped.sum(dim=-1, keepdim=True))
@@ -219,11 +279,18 @@ class DirichletDistribution(Distribution):
         Having it exactly is one of the reasons for this distribution: under a Gaussian composed
         with a softmax the entropy of the actions is not the entropy of the Gaussian, so the
         entropy bonus of PPO would regularise a quantity other than the one it appears to.
+
+        Returns:
+            The entropy of the current distribution, one value per batch element.
         """
         return self.distribution.entropy()
 
     def sample(self) -> th.Tensor:
-        """A portfolio drawn from the policy, on the simplex by construction."""
+        """A portfolio drawn from the policy, on the simplex by construction.
+
+        Returns:
+            A reparameterised sample (``rsample``), weights on the last axis.
+        """
         return self.distribution.rsample()
 
     def mode(self) -> th.Tensor:
@@ -233,16 +300,34 @@ class DirichletDistribution(Distribution):
         ``(alpha - 1) / (sum(alpha) - N)``, but it is more extreme than the mean and moves
         discontinuously as a component approaches one, whereas the mean is the barycentre of what
         the policy would actually play. Declared in ``config/ppo.yml`` as ``deterministic_action``.
+
+        Returns:
+            The Dirichlet mean, weights on the last axis.
         """
         return self.distribution.mean
 
     def actions_from_params(self, action_logits: th.Tensor, deterministic: bool = False) -> th.Tensor:
-        """Parameters to action, in one call."""
+        """Parameters to action, in one call.
+
+        Args:
+            action_logits: Network output, one logit per asset.
+            deterministic: Return the Dirichlet mean instead of a sample.
+
+        Returns:
+            Portfolio weights, last axis over assets.
+        """
         self.proba_distribution(action_logits)
         return self.get_actions(deterministic=deterministic)
 
     def log_prob_from_params(self, action_logits: th.Tensor) -> tuple[th.Tensor, th.Tensor]:
-        """Parameters to a sampled action and its log-probability, in one call."""
+        """Parameters to a sampled action and its log-probability, in one call.
+
+        Args:
+            action_logits: Network output, one logit per asset.
+
+        Returns:
+            The sampled weights and their log-probability.
+        """
         actions = self.actions_from_params(action_logits)
         return actions, self.log_prob(actions)
 
@@ -257,6 +342,14 @@ class DirichletActorCriticPolicy(ActorCriticPolicy):
     """
 
     def __init__(self, *args: Any, alpha_min: float, log_prob_epsilon: float = 1e-6, **kwargs: Any) -> None:
+        """Record the Dirichlet parameters before the base class builds the network.
+
+        Args:
+            *args: Positional arguments of ``ActorCriticPolicy``.
+            alpha_min: Lower bound of the concentration, from ``config/ppo.yml``.
+            log_prob_epsilon: Clamp applied before evaluating a log-probability, from ``config/ppo.yml``.
+            **kwargs: Keyword arguments of ``ActorCriticPolicy``.
+        """
         self._alpha_min = float(alpha_min)
         self._log_prob_epsilon = float(log_prob_epsilon)
         super().__init__(*args, **kwargs)
@@ -350,6 +443,13 @@ def policy_from_model(model: PPO) -> Policy:
 
     Section 2b: ``evaluate.py`` scores any ``policy(observations, t) -> weights``, so the agent has
     to look like one. The deterministic action is the Dirichlet mean.
+
+    Args:
+        model: A trained (or loaded) PPO model with the Dirichlet policy.
+
+    Returns:
+        A callable mapping a batch of observations and the month ``t`` (unused: the clock is part of
+        the observation) to portfolio weights.
     """
 
     def policy(observations: np.ndarray, t: int) -> np.ndarray:  # noqa: ARG001 - the clock is in the state
@@ -367,6 +467,13 @@ def uniform_simplex_policy(rng: np.random.Generator, n_assets: int) -> Policy:
     fixed, documented strategy rather than the untrained network: an untrained Dirichlet head emits
     near-zero logits, whose mean is the equal split, and comparing against that would be comparing
     against 1/N under another name.
+
+    Args:
+        rng: Random stream the portfolios are drawn from.
+        n_assets: Number of assets.
+
+    Returns:
+        A callable returning one fresh uniform draw on the simplex per observation row.
     """
 
     def policy(observations: np.ndarray, t: int) -> np.ndarray:  # noqa: ARG001
@@ -381,7 +488,17 @@ def uniform_simplex_policy(rng: np.random.Generator, n_assets: int) -> Policy:
 def probability_of_reaching_goal(
     scenarios: np.ndarray, policy: Policy, problem: ProblemConfig, cost_rate: float | None = None
 ) -> float:
-    """The primary metric of thesis 4.2.4, on a tensor held out from training."""
+    """The primary metric of thesis 4.2.4, on a tensor held out from training.
+
+    Args:
+        scenarios: Monthly simple returns, shape ``(n_scenarios, horizon, n_assets)``.
+        policy: Callable ``policy(observations, t) -> weights``.
+        problem: Base case (goal and contributions in USD), from ``config/problem.yml``.
+        cost_rate: Transaction cost as a fraction (basis points times 1e-4); the base case when omitted.
+
+    Returns:
+        The fraction of scenarios whose terminal wealth reaches the goal, ``P(W_T >= G)``.
+    """
     wealth = rollout(scenarios, policy, problem=problem, cost_rate=cost_rate)["terminal_wealth"]
     return float((wealth >= problem.goal_usd).mean())
 
@@ -413,6 +530,18 @@ class HeldOutEvaluation(BaseCallback):
         *,
         cost_rate: float | None = None,
     ) -> None:
+        """Set up the callback; the first evaluation happens after ``eval_freq`` steps.
+
+        Args:
+            scenarios: Held-out monthly simple returns, shape ``(n_scenarios, horizon, n_assets)``.
+            problem: Base case, from ``config/problem.yml``.
+            eval_freq: Total environment steps between evaluations (``config/ppo.yml``).
+            n_envs: Sub-environments advanced by each vectorised step, used to convert ``eval_freq``
+                into callback calls.
+            random_value: The random-policy value on the same scenarios.
+            verbose: Verbosity passed to ``BaseCallback``.
+            cost_rate: Transaction cost as a fraction; the base case when omitted.
+        """
         super().__init__(verbose)
         self.scenarios = scenarios
         self.problem = problem
@@ -463,8 +592,10 @@ def train(
         configuration: Key of the frozen recipe supplying the generator mode and block length.
         seed: Seed of the run, inside the training band.
         total_timesteps: Length of the run; the configured default when omitted.
-        cost_bp: Transaction cost the agent is trained under; the base case when omitted.
-        shaping: Whether to add the potential-based term. Diagnostic only (D74, A40).
+        cost_bp: Transaction cost the agent is trained under, in basis points; ``cost_bp`` of
+            ``config/problem.yml`` when omitted. It also names the run directory.
+        shaping: Whether to add the potential-based term. Diagnostic only (D74, A40). It does not
+            change the run directory name.
         agent: Agent configuration; read from ``config/ppo.yml`` when omitted.
         problem: Base case; read from configuration when omitted.
         runs_directory: Root of the output tree.
@@ -472,7 +603,9 @@ def train(
         progress_bar: Whether to show a progress bar.
 
     Returns:
-        The metrics document, which is also written to disk.
+        The metrics document, which is also written to disk. The run writes
+        ``<runs_directory>/<configuration>_<cost_bp>bp/seed_<seed>/`` with ``policy.zip``,
+        ``metrics.json`` and the TensorBoard logs.
     """
     agent = agent or load_agent_config()
     problem = problem or load_problem()
@@ -583,6 +716,14 @@ def train(
 # Command line
 # ======================================================================================
 def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point: ``python -m portfolio_manager.train``.
+
+    Args:
+        argv: Arguments to parse; ``sys.argv`` when omitted.
+
+    Returns:
+        Process exit code: 0 on success, 1 if the run failed on a file, value or key error.
+    """
     parser = argparse.ArgumentParser(description="Train the Dirichlet policy with PPO.")
     parser.add_argument("--config", required=True, help="configuration of the frozen recipe, e.g. A_gbm or B_L12")
     parser.add_argument("--seed", type=int, required=True, help=f"training seed, inside the band {TRAINING_BAND}")

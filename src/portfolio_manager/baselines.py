@@ -80,7 +80,17 @@ class AssetMapping:
     fixed_income_shares: dict[str, float]
 
     def index(self, name: str) -> int:
-        """Position of a column in the normative order."""
+        """Position of a column in the normative order.
+
+        Args:
+            name: Column name, as in the header of ``data/returns_matrix.csv``.
+
+        Returns:
+            Zero-based index of the column.
+
+        Raises:
+            ValueError: If the name is not a column of the matrix.
+        """
         if name not in self.columns:
             raise ValueError(f"{name!r} is not a column of the matrix; the header is {list(self.columns)}")
         return self.columns.index(name)
@@ -237,7 +247,14 @@ def _as_policy(weights_at: Callable[[int], np.ndarray]) -> Policy:
 
 
 def constant_mix_weights(config: BaselinesConfig) -> np.ndarray:
-    """The 60/40 portfolio, ``(0.60; 0.40 phi; 0.40 (1 - phi); 0)``."""
+    """The 60/40 portfolio, ``(0.60; 0.40 phi; 0.40 (1 - phi); 0)``.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml``.
+
+    Returns:
+        ``(N,)`` weights on the simplex, in the normative column order.
+    """
     return config.mapping.allocate(config.constant_mix_equity)
 
 
@@ -247,12 +264,30 @@ def constant_mix_policy(config: BaselinesConfig) -> Policy:
     A fixed target is not a strategy without trades. The effective weights move every month because
     the four assets return differently, and pulling the portfolio back to the target incurs exactly
     the turnover the agent is charged for.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml``.
+
+    Returns:
+        A ``policy(observations, t) -> weights`` callable that ignores both arguments.
     """
     return _as_policy(lambda t: constant_mix_weights(config))  # noqa: ARG005 - the clock is not read
 
 
 def glide_path_equity_weight(config: BaselinesConfig, t: int, horizon: int | None = None) -> float:
-    """``w_E(t) = w_0 + (w_T - w_0) t / T``, the declining schedule of thesis 4.2.3."""
+    """``w_E(t) = w_0 + (w_T - w_0) t / T``, the declining schedule of thesis 4.2.3.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml``; only the linear shape is accepted.
+        t: Month, from 0 to ``T``.
+        horizon: ``T`` in months; ``config.horizon_months`` when omitted.
+
+    Returns:
+        Share of the portfolio in the equity column at month ``t``.
+
+    Raises:
+        ValueError: If the configuration declares a shape other than ``linear``.
+    """
     if config.glide_shape != "linear":
         raise ValueError(f"only the linear shape is implemented, the configuration declares {config.glide_shape!r}")
     horizon = int(horizon if horizon is not None else config.horizon_months)
@@ -266,6 +301,13 @@ def glide_path_policy(config: BaselinesConfig, horizon: int | None = None) -> Po
     the same date, so neither endpoint was chosen here. Its theoretical justification is mean
     reversion, which the block bootstrap destroys beyond the block length: the comparison is
     therefore biased in favour of the agent, and that bias is declared rather than corrected.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml``.
+        horizon: ``T`` in months; ``config.horizon_months`` when omitted.
+
+    Returns:
+        A ``policy(observations, t) -> weights`` callable that reads only the month ``t``.
     """
     return _as_policy(lambda t: config.mapping.allocate(glide_path_equity_weight(config, t, horizon)))
 
@@ -315,7 +357,16 @@ def merton_fraction(
 def merton_weights(
     config: BaselinesConfig, gamma: float, statistics: dict[str, Any] | None = None
 ) -> np.ndarray:
-    """The Merton portfolio: the clipped fraction in equity, the remainder in the riskless column."""
+    """The Merton portfolio: the clipped fraction in equity, the remainder in the riskless column.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml``.
+        gamma: Coefficient of relative risk aversion.
+        statistics: The ``statistics`` block of ``returns_matrix.json``; read from disk when omitted.
+
+    Returns:
+        ``(N,)`` weights on the simplex, in the normative column order.
+    """
     mapping = config.mapping
     weight = merton_fraction(config, gamma, statistics)["weight"]
     weights = np.zeros(len(mapping.columns), dtype=np.float64)
@@ -328,7 +379,16 @@ def merton_weights(
 def merton_policy(
     config: BaselinesConfig, gamma: float, statistics: dict[str, Any] | None = None
 ) -> Policy:
-    """Hold the Merton fraction, constant over the horizon."""
+    """Hold the Merton fraction, constant over the horizon.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml``.
+        gamma: Coefficient of relative risk aversion.
+        statistics: The ``statistics`` block of ``returns_matrix.json``; read from disk when omitted.
+
+    Returns:
+        A ``policy(observations, t) -> weights`` callable returning the same weights every month.
+    """
     weights = merton_weights(config, gamma, statistics)
     return _as_policy(lambda t: weights)  # noqa: ARG005 - constant over the horizon
 
@@ -338,6 +398,12 @@ def equal_weight_policy(config: BaselinesConfig) -> Policy:
 
     The only comparator with a direct exposure to gold, and the only one estimating nothing at all,
     which is precisely why it is hard to beat.
+
+    Args:
+        config: Comparator configuration from ``config/baselines.yml`` (``equal_weight.weight_per_asset``).
+
+    Returns:
+        A ``policy(observations, t) -> weights`` callable returning the same weights every month.
     """
     weights = np.full(len(config.mapping.columns), config.equal_weight, dtype=np.float64)
     _assert_on_simplex(weights, "the equal split")
@@ -428,6 +494,15 @@ def describe_baselines(
     What the reader of subsection 4.4 needs in order to check that no comparator was tuned: the
     split actually used, the endpoints of the schedule, and both the unclipped and the constrained
     Merton fractions.
+
+    Args:
+        config: Comparator configuration; read from ``config/baselines.yml`` when omitted.
+        statistics: The ``statistics`` block of ``returns_matrix.json``; read from disk when omitted.
+        horizon: ``T`` in months; ``config.horizon_months`` when omitted.
+
+    Returns:
+        JSON-serialisable mapping with the columns, horizon, fixed-income split, fixed weights,
+        60/40 weights, glide-path endpoints, Merton fractions per ``gamma`` and the equal weight.
     """
     config = config or load_baselines()
     horizon = int(horizon if horizon is not None else config.horizon_months)

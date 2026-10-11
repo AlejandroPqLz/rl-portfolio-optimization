@@ -58,7 +58,15 @@ class BondSpec:
 
     @classmethod
     def from_mapping(cls, name: str, values: dict[str, object]):  # -> "BondSpec":
-        """Build a spec from the configuration file."""
+        """Build a spec from the configuration file.
+
+        Args:
+            name: Column name of the leg, e.g. ``ust10y``.
+            values: The leg's block of ``config/dataset.yml``, with ``filename`` and ``maturity_years``.
+
+        Returns:
+            The bond specification.
+        """
         return cls(
             name=name,
             filename=str(values["filename"]),

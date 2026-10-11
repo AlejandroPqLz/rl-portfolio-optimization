@@ -158,21 +158,51 @@ class SolverConfig:
 
     @property
     def workers(self) -> int:
-        """Threads to run the batches of a month on."""
+        """Threads to run the batches of a month on.
+
+        Returns:
+            ``n_workers`` from ``config/dp_solver.yml`` when set, otherwise :func:`performance_cores`.
+        """
         return self.n_workers if self.n_workers is not None else performance_cores()
 
     @property
     def cost_rate(self) -> float:
-        """``lambda`` as a rate per unit of turnover."""
+        """``lambda`` as a rate per unit of turnover.
+
+        Returns:
+            ``cost_bp`` (basis points) converted to a fraction, ``cost_bp * 1e-4``.
+        """
         return self.cost_bp * BASIS_POINT
 
     def at_resolution(self, n_wealth: int, n_quad: int) -> "SolverConfig":
-        """The same problem at a different resolution, for the stability checks."""
+        """The same problem at a different resolution, for the stability checks.
+
+        Args:
+            n_wealth: Wealth nodes of the new grid.
+            n_quad: Gauss-Hermite nodes per non-degenerate factor.
+
+        Returns:
+            A copy of this configuration with only those two fields replaced.
+        """
         return SolverConfig(**{**self.__dict__, "n_wealth": int(n_wealth), "n_quad": int(n_quad)})
 
 
 def load_solver_config(path: Path | None = None) -> SolverConfig:
-    """Read ``config/dp_solver.yml``."""
+    """Read ``config/dp_solver.yml``.
+
+    Rejects an unknown objective or tie-break, any interpolation other than linear, and a non-zero
+    ``cost_bp`` (D56).
+
+    Args:
+        path: File to read; ``config/dp_solver.yml`` when omitted.
+
+    Returns:
+        The discretisation, every field taken from the file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file declares something this module does not implement.
+    """
     path = path or config_path("dp_solver")
     if not path.is_file():
         raise FileNotFoundError(f"{path} not found: no discretisation has a default in code")
@@ -213,6 +243,10 @@ def performance_cores() -> int:
     Above this the induction stops gaining: the efficiency cores of a heterogeneous processor are
     much slower at this arithmetic and contend for the same memory bandwidth, so adding them moves
     the wall clock very little and sometimes backwards.
+
+    Returns:
+        On macOS, ``hw.perflevel0.physicalcpu`` from ``sysctl``; elsewhere, or if that query fails,
+        ``os.cpu_count()``. Never less than one.
     """
     if sys.platform == "darwin":
         try:
@@ -317,7 +351,14 @@ def quadrature(params: GbmParams, n_quad: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def wealth_grid(config: SolverConfig) -> np.ndarray:
-    """Equispaced nodes of normalised wealth, from zero to the declared bound."""
+    """Equispaced nodes of normalised wealth, from zero to the declared bound.
+
+    Args:
+        config: Discretisation; ``n_wealth`` and ``wealth_max_over_goal`` from ``config/dp_solver.yml``.
+
+    Returns:
+        ``(n_wealth,)`` float64 array of ``W / G`` values in ``[0, wealth_max_over_goal]``.
+    """
     return np.linspace(0.0, config.wealth_max_over_goal, config.n_wealth, dtype=np.float64)
 
 
@@ -359,12 +400,24 @@ class Solution:
     seconds_elapsed: float
 
     def value_at(self, relative_wealth: float, t: int = 0) -> float:
-        """The value at a state, interpolated exactly as the induction interpolates."""
+        """The value at a state, interpolated exactly as the induction interpolates.
+
+        Args:
+            relative_wealth: Wealth in goal units, ``W / G``. Held flat beyond the grid.
+            t: Month index, ``0`` to ``T``.
+
+        Returns:
+            The value function at that state, in reward units.
+        """
         return float(np.interp(relative_wealth, self.wealth_grid, self.value[:, t]))
 
     @property
     def degenerate_fraction(self) -> float:
-        """Share of states where more than one portfolio attains the optimum."""
+        """Share of states where more than one portfolio attains the optimum.
+
+        Returns:
+            Fraction of ``(node, month)`` pairs with ``n_optimal_actions > 1``, in ``[0, 1]``.
+        """
         return float((self.n_optimal_actions > 1).mean())
 
 
@@ -448,12 +501,16 @@ def solve(
     Args:
         config: Discretisation; read from ``config/dp_solver.yml`` when omitted.
         params: Generator parameters; read from ``config/gbm_params.yml`` when omitted.
-        problem: Base case; read from configuration when omitted.
-        horizon: Overrides ``T``.
+        problem: Base case; read from ``config/problem.yml`` when omitted.
+        horizon: Overrides ``T``, in steps.
         asset_mask: ``(N,)`` boolean selecting the columns the solver may hold. The Browne
             configuration restricts the universe to two of them.
         objective: Overrides the terminal objective.
-        contribution: Overrides ``c``; the Browne configuration sets it to zero.
+        contribution: Overrides ``c``, in USD per step; the Browne configuration sets it to zero.
+        action_grid: ``(A, N)`` candidate portfolios replacing the simplex grid; the leverage
+            variant passes rows off the simplex.
+        floor_wealth: Whether to hold next-step wealth at zero when an outcome falls below it.
+            Only the leverage variant sets it.
         progress: Whether to print the month being solved.
 
     Returns:
@@ -605,6 +662,19 @@ def save(
     The grids are saved beside the tables, which section 2b requires: the discrepancy index of the
     first hypothesis reads the tabulated policy at the states the learned policy visits, and
     without the grids it could not locate them.
+
+    Args:
+        solution: Tables to save.
+        name: File stem, written as ``<directory>/<name>.npz`` plus its JSON side-car.
+        config: Discretisation the tables were solved with, recorded in the side-car.
+        problem: Base case (goal, horizon, contribution and initial wealth in USD), recorded in the
+            side-car.
+        directory: Output directory; ``results/dp`` by default.
+        argv: Command line recorded in the side-car; the running one when omitted.
+        extra: Further keys merged into the side-car.
+
+    Returns:
+        Path of the ``.npz`` file.
     """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}.npz"
@@ -670,6 +740,15 @@ def visited_nodes(solution: Solution, scenarios: np.ndarray, problem: ProblemCon
     Agreement between two tables in a region no trajectory visits says nothing about the policy
     being compared, so the second stability check is measured here and not over the whole grid.
     The trajectories are those of the tabulated policy itself, driven by the frozen scenarios.
+
+    Args:
+        solution: Table whose policy drives the trajectories and whose grid locates them.
+        scenarios: ``(n_scenarios, T, N)`` monthly simple returns.
+        problem: Base case; the rollout runs at zero cost, as the table does (D56).
+
+    Returns:
+        ``(K, 2)`` integer array of distinct ``(node, month)`` pairs, the node being the nearest
+        wealth node and the month running over ``0`` to ``T - 1``.
     """
     path = rollout(
         scenarios,
@@ -716,6 +795,14 @@ def policy_value_loss(
     priced: this is the value the reference problem loses by playing the other table's choice, and
     it is zero when the disagreement is immaterial.
 
+    Args:
+        reference: Table whose value function and quadrature define the problem.
+        refined: Table whose portfolios are priced.
+        node: ``(K,)`` wealth-node indices on the reference grid.
+        month: ``(K,)`` month indices.
+        refined_node: ``(K,)`` the same states located on the refined grid.
+        contribution: Monthly contribution in goal units, ``c / G``.
+
     Returns:
         ``(K,)`` non-negative losses, in the units of the value function.
     """
@@ -757,8 +844,20 @@ def stability_checks(
     is the discretisation error, which is a different and smaller claim; correctness is what the
     validation against the closed form addresses.
 
+    Args:
+        config: Discretisation of the reference table and, under ``stability``, the refined
+            resolution and both thresholds; read from ``config/dp_solver.yml`` when omitted.
+        params: Generator parameters; read from ``config/gbm_params.yml`` when omitted.
+        problem: Base case; read from ``config/problem.yml`` when omitted.
+        scenarios: Trajectories that define the visited nodes; the frozen ``A_gbm`` tensor when
+            omitted. Only the first 2000 are used.
+        reference: An already solved reference table, to avoid solving it twice.
+        progress: Whether to print the month being solved.
+
     Returns:
-        A JSON-serialisable document with both checks and an overall verdict.
+        A JSON-serialisable document with the value check, the policy check (with its value
+        loss) and the upper-bound record. Each check carries its own ``passed`` flag; the
+        overall verdict is added by :func:`write_stability`.
     """
     config = config or load_solver_config()
     problem = problem or load_problem()
@@ -859,7 +958,16 @@ def stability_checks(
 
 
 def write_stability(document: dict[str, Any], directory: Path = CHECKS_DIRECTORY) -> Path:
-    """Write the stability report where subsection 4.4 reads it from."""
+    """Write the stability report where subsection 4.4 reads it from.
+
+    Args:
+        document: Output of :func:`stability_checks`.
+        directory: Output directory; ``results/checks`` by default.
+
+    Returns:
+        Path of ``dp_stability.json``, which adds ``all_passed``, the command line, the git commit
+        and the environment fingerprint to ``document``.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "dp_stability.json"
     payload = {
@@ -953,7 +1061,18 @@ def browne_setup(
 
 
 def load_browne_config(path: Path | None = None) -> dict[str, Any]:
-    """Read ``config/validation_browne.yml``."""
+    """Read ``config/validation_browne.yml``.
+
+    Args:
+        path: File to read; ``config/validation_browne.yml`` when omitted.
+
+    Returns:
+        The parsed configuration, unchanged.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the objective is not the indicator, or contributions or costs are non-zero.
+    """
     path = path or config_path("validation_browne")
     if not path.is_file():
         raise FileNotFoundError(f"{path} not found")
@@ -1069,8 +1188,17 @@ def score_browne_checks(
 ) -> dict[str, Any]:
     """The value and policy checks of section 6 at one refinement pair.
 
+    Args:
+        solution: The solved tables.
+        closed_form: Coefficients of the paper.
+        steps_per_month: Steps the month is divided into.
+        margin: Distance from the borrowing boundary required of a node, in units of ``z``.
+        equity_column: Index of the risky column in the policy table.
+
     Returns:
-        The two maxima, the size of the comparison set and the figures behind them.
+        The two maxima, the size of the comparison set and the figures behind them (mean errors,
+        largest closed-form fraction, range of months remaining). Maxima are ``nan`` when the
+        comparison set is empty.
     """
     node, step, months = comparison_set(solution, closed_form, steps_per_month, margin)
     if node.size == 0:
@@ -1131,7 +1259,18 @@ def margin_sensitivity(
     equity_column: int,
     margins: tuple[float, ...] = MARGIN_SENSITIVITY,
 ) -> list[dict[str, Any]]:
-    """The two maxima as a function of how far the comparison set is kept from the boundary."""
+    """The two maxima as a function of how far the comparison set is kept from the boundary.
+
+    Args:
+        solution: The solved tables.
+        closed_form: Coefficients of the paper.
+        steps_per_month: Steps the month is divided into.
+        equity_column: Index of the risky column in the policy table.
+        margins: Margins to score; :data:`MARGIN_SENSITIVITY` by default.
+
+    Returns:
+        One :func:`score_browne_checks` document per margin, each with its ``margin`` added.
+    """
     return [
         {"margin": float(margin), **score_browne_checks(solution, closed_form, steps_per_month, margin, equity_column)}
         for margin in margins
@@ -1148,6 +1287,14 @@ def leverage_comparison_set(
     admitted that line has no bearing on which states are comparable, and the only exclusions left
     are the two where the formulas have nothing to say: ``z = 0``, where the quantile diverges, and
     ``z >= 1``, where the bond alone reaches the goal.
+
+    Args:
+        solution: The solved tables.
+        closed_form: Coefficients of the paper; only ``r`` is used, to form ``z``.
+        steps_per_month: Steps the month is divided into.
+
+    Returns:
+        Tuple ``(node_index, step_index, months_remaining)``, one entry per comparable state.
     """
     grid = solution.wealth_grid
     total_steps = solution.policy.shape[1]
@@ -1172,6 +1319,20 @@ def expected_value_of(
     is what prices a disagreement: the difference against the table's own value is what the other
     policy gives up, and a disagreement that gives up nothing is the objective being flat in the
     action rather than the solver being wrong.
+
+    Next-period wealth is floored at zero before interpolation.
+
+    Args:
+        solution: Tables whose value function, grid and quadrature define the problem.
+        node: ``(K,)`` wealth-node indices.
+        step: ``(K,)`` time-step indices.
+        fraction: ``(K,)`` equity weight held at each state; the rest is in the riskless column.
+        equity_column: Index of the risky column.
+        riskless_column: Index of the riskless column.
+        contribution: Contribution per step in goal units, ``c / G``.
+
+    Returns:
+        ``(K,)`` expected continuation values, in reward units.
     """
     returns = solution.quadrature_returns
     weights = solution.quadrature_weights
@@ -1206,6 +1367,24 @@ def score_browne_detail(
     A maximum says how far apart two policies get. It does not say whether the gap is a bias or a
     scatter, where it sits, or what it costs. The signed mean answers the first, the located
     maximum the second and the value loss the third.
+
+    Args:
+        solution: The solved tables.
+        closed_form: Coefficients of the paper.
+        node: ``(K,)`` wealth-node indices of the comparison set.
+        step: ``(K,)`` time-step indices.
+        months: ``(K,)`` months remaining at each state.
+        equity_column: Index of the risky column.
+        riskless_column: Index of the riskless column, used only for the value loss.
+        max_equity_weight: Largest equity weight on the action grid. When given, the share of
+            states where the closed form asks for more is reported, with the policy error
+            restricted to the remaining states.
+        with_value_loss: Whether to price the closed-form fraction (clipped to the grid) in the
+            table's own problem.
+
+    Returns:
+        Absolute and signed value and policy errors, the location of the worst policy error and,
+        as requested, the truncation share and the value loss. Maxima are ``nan`` on an empty set.
     """
     if node.size == 0:
         return {"n_nodes": 0, "value_max_error": float("nan"), "policy_max_error": float("nan")}
@@ -1283,6 +1462,20 @@ def stratify_by_borrowing(
     control is one the experiment could also have followed, so a disagreement is about the solver.
     Inside it the control needs the leverage this variant grants and the experiment forbids, so the
     stratum is what the no-leverage run could never reach.
+
+    Args:
+        solution: The solved tables.
+        closed_form: Coefficients of the paper.
+        node: ``(K,)`` wealth-node indices of the comparison set.
+        step: ``(K,)`` time-step indices.
+        months: ``(K,)`` months remaining at each state.
+        equity_column: Index of the risky column.
+        riskless_column: Index of the riskless column.
+        max_equity_weight: Largest equity weight on the action grid.
+
+    Returns:
+        ``{"borrowing": ..., "no_borrowing": ..., "borrowing_share": float}``, each stratum a
+        :func:`score_browne_detail` document, or ``{"n_nodes": 0}`` when empty.
     """
     tau = closed_form.sigma**2 * months
     boundary = np.array([borrowing_boundary(float(value))[1] for value in tau])
@@ -1330,6 +1523,20 @@ def score_mu_independence(
     declared number of action-grid steps on the required fraction of the comparison set, while the
     value table must move: a solver that ignored the drift entirely would pass the first half of
     this check for the wrong reason, and the second half is what rules that out.
+
+    Args:
+        browne: Parsed ``config/validation_browne.yml``; the shift, the tolerance in grid steps
+            and the required agreement are read from ``checks.mu_independence``.
+        config: Discretisation; its ``action_step`` converts grid steps into a weight tolerance.
+        problem: Base case.
+        steps_per_month: Steps the month is divided into.
+        n_wealth: Wealth nodes of the solves.
+        margin: Distance from the borrowing boundary required of a node.
+        equity_column: Index of the risky column.
+
+    Returns:
+        The shift, the tolerance, the agreement and value movement for each direction, the
+        :data:`DELTA_SENSITIVITY` diagnostic, and ``passed``.
     """
     settings = browne["checks"]["mu_independence"]
     columns, _ = load_matrix()
@@ -1427,6 +1634,19 @@ def score_leverage_mu_independence(
     threshold is declared: the three quantities are reported as evidence and the verdict rests on
     the assumption holding both ways, because choosing a threshold here after the first one failed
     is what D47 exists to prevent.
+
+    Args:
+        browne: Parsed ``config/validation_browne.yml``; settings from
+            ``leverage.checks.mu_independence`` and the grid step from ``leverage.grid_step``.
+        config: Discretisation the leverage solve starts from.
+        problem: Base case.
+        steps_per_month: Steps the month is divided into.
+        n_wealth: Wealth nodes of the solves.
+        equity_column: Index of the risky column.
+
+    Returns:
+        The shift, the per-direction policy and value changes, and ``passed``, which is whether the
+        paper's assumption ``mu >= r`` holds in both directions.
     """
     settings = browne["leverage"]["checks"]["mu_independence"]
     columns, _ = load_matrix()
@@ -1487,7 +1707,20 @@ def solve_leverage(
     n_wealth: int,
     mean_shift: float = 0.0,
 ) -> Solution:
-    """Solve the validation problem with the leverage grid and the bankruptcy floor."""
+    """Solve the validation problem with the leverage grid and the bankruptcy floor.
+
+    Args:
+        browne: Parsed ``config/validation_browne.yml``; the leverage cap and grid step come from
+            its ``leverage`` block, the wealth bound, ``n_quad`` and horizon from the top level.
+        config: Discretisation the remaining fields are taken from.
+        problem: Base case; only the goal is relevant, since the contribution is set to zero.
+        steps_per_month: Steps the month is divided into.
+        n_wealth: Wealth nodes.
+        mean_shift: Added to the monthly mean log return of the risky column.
+
+    Returns:
+        The tables of the indicator objective, solved with wealth floored at zero.
+    """
     settings = browne["leverage"]
     columns, _ = load_matrix()
     params, mask, _ = browne_setup(browne, columns, load_gbm_params(), mean_shift=mean_shift)
@@ -1530,7 +1763,23 @@ def run_leverage_variant(
     equity_column: int,
     riskless_column: int,
 ) -> dict[str, Any]:
-    """The leverage variant: the whole of ``0 < z < 1``, stratified by the borrowing region."""
+    """The leverage variant: the whole of ``0 < z < 1``, stratified by the borrowing region.
+
+    Solves once per entry of ``refinement`` in ``config/validation_browne.yml`` with
+    :func:`solve_leverage`; nothing is saved under ``results/dp``.
+
+    Args:
+        browne: Parsed ``config/validation_browne.yml``; tolerances from ``leverage.checks``.
+        config: Discretisation the leverage solves start from.
+        problem: Base case.
+        closed_form: Coefficients of the paper.
+        equity_column: Index of the risky column.
+        riskless_column: Index of the riskless column.
+
+    Returns:
+        Per-level errors (declared set and fixed set), strata at the finest pair, the value,
+        policy and drift checks, each with ``passed``.
+    """
     settings = browne["leverage"]
     checks = settings["checks"]
     maximum = float(settings["max_equity_weight"])
@@ -1666,6 +1915,21 @@ def run_browne_validation(
     The no-leverage run and its three recorded verdicts are untouched: it keeps its margin, its
     boundary, its tolerances and its drift shift. The leverage variant is a second configuration
     beside it, not a replacement for it, and the experimental configuration is neither.
+
+    The leverage variant runs only when ``leverage.enabled`` is true in the configuration.
+
+    Args:
+        browne: Parsed validation configuration; ``config/validation_browne.yml`` when omitted.
+            The discretisation and base case come from ``config/dp_solver.yml`` and
+            ``config/problem.yml``, the coefficients from ``config/gbm_params.yml``.
+        directory: Where the no-leverage tables are saved; ``results/dp`` by default.
+        checks_directory: Where ``browne_validation.json`` is written; ``results/checks`` by default.
+        argv: Command line recorded in the outputs; the running one when omitted.
+        progress: Whether to print the month being solved.
+
+    Returns:
+        The validation document, with ``all_passed`` over every check of every variant and
+        ``path`` pointing at the JSON file written.
     """
     browne = browne if browne is not None else load_browne_config()
     config, problem = load_solver_config(), load_problem()
@@ -1746,7 +2010,27 @@ def run_no_leverage_variant(
     argv: list[str] | None = None,
     progress: bool = False,
 ) -> dict[str, Any]:
-    """The original validation, unchanged: simplex actions, margin, boundary and its tolerances."""
+    """The original validation, unchanged: simplex actions, margin, boundary and its tolerances.
+
+    Each refinement level is solved with :func:`solve_browne` and saved as
+    ``browne_<steps>_per_month.npz`` under ``directory``.
+
+    Args:
+        browne: Parsed ``config/validation_browne.yml``; margin and tolerances from ``checks``.
+        config: Discretisation the validation solves start from.
+        problem: Base case.
+        closed_form: Coefficients of the paper.
+        equity_column: Index of the risky column.
+        riskless_column: Index of the riskless column.
+        directory: Where the tables are saved.
+        argv: Command line recorded in the side-cars.
+        progress: Whether to print the month being solved.
+
+    Returns:
+        Per-level errors, detail and margin sensitivity at the finest pair, and the value, policy
+        and drift checks, each with ``passed``. The value and policy checks require a strictly
+        decreasing sequence of maxima as well as the finest maximum below tolerance.
+    """
     settings = browne["checks"]
     margin = float(settings["margin"])
     value_tolerance = float(settings["value_tolerance"])
@@ -2004,6 +2288,14 @@ def _print_browne(argv: list[str], *, progress: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command line ``python -m portfolio_manager.dp_solver``.
+
+    Args:
+        argv: Arguments to parse; the running command line when omitted.
+
+    Returns:
+        Process exit code, zero on success.
+    """
     parser = argparse.ArgumentParser(description="Backward induction on the wealth grid.")
     parser.add_argument("--config", default="A_gbm", help="configuration of the frozen recipe, e.g. A_gbm")
     parser.add_argument("--stability", action="store_true", help="also run the two internal checks")

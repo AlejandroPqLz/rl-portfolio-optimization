@@ -91,7 +91,12 @@ class DatasetConfig:
 
     @property
     def columns(self) -> tuple[str, ...]:
-        """Column order of the output matrix."""
+        """Column order of the output matrix.
+
+        Returns:
+            Equity, the bond legs in configuration order, then gold (``us_equity, ust10y, ust2y, gold``
+            with ``config/dataset.yml``).
+        """
         return (self.equity_column, *(spec.name for spec in self.bonds), self.gold_column)
 
 
@@ -255,6 +260,10 @@ def baselines_path() -> Path:
 
     ``.yml`` is the extension this repository uses; ``.yaml`` is still accepted on read so that a
     file carried over under the other spelling is found rather than silently ignored.
+
+    Returns:
+        The first existing ``config/baselines.yml`` or ``config/baselines.yaml``; the ``.yml`` path
+        when neither exists.
     """
     for suffix in (".yml", ".yaml"):
         candidate = CONFIG_DIR / f"baselines{suffix}"
@@ -555,6 +564,17 @@ def _print_build(raw_dir: Path, config: DatasetConfig) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command line: ``python -m portfolio_manager.etl.dataset.consolidate``.
+
+    Reads ``config/dataset.yml``. ``--scale-check``, ``--fixed-income-report`` and ``--build`` may be
+    combined and run in that order; with none of them the help is printed.
+
+    Args:
+        argv: Arguments to parse; ``sys.argv[1:]`` when omitted.
+
+    Returns:
+        Exit status: 0 on success, 1 when a stage fails on a missing file or invalid data.
+    """
     parser = argparse.ArgumentParser(description="Consolidation stage: raw files to the D x 4 return matrix.")
     parser.add_argument("--scale-check", action="store_true", help="run the mandatory scale check and exit")
     parser.add_argument("--fixed-income-report", action="store_true", help="diagnostics on the reconstructed series")

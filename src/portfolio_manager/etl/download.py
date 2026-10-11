@@ -134,6 +134,9 @@ def sha256_of(path: Path) -> str:
 
     Args:
         path: File to digest.
+
+    Returns:
+        Lower-case hexadecimal SHA-256 digest.
     """
     digest = hashlib.sha256()
     with path.open("rb") as handle:

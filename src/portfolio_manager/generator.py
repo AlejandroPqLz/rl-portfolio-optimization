@@ -129,7 +129,14 @@ def config_path(stem: str) -> Path:
 
 
 def sha256_of_file(path: Path) -> str:
-    """SHA-256 digest of a file, read in chunks."""
+    """SHA-256 digest of a file, read in chunks.
+
+    Args:
+        path: File to hash.
+
+    Returns:
+        Hexadecimal SHA-256 digest of the file's bytes.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
@@ -150,7 +157,11 @@ def tensor_digest(tensor: np.ndarray) -> str:
 
 
 def git_commit() -> str | None:
-    """Current commit hash, or ``None`` outside a repository. Never raises."""
+    """Current commit hash, or ``None`` outside a repository. Never raises.
+
+    Returns:
+        The output of ``git rev-parse HEAD``, or ``None`` if git fails or prints nothing.
+    """
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=10
@@ -210,14 +221,35 @@ def load_matrix(path: Path = MATRIX_PATH) -> tuple[tuple[str, ...], np.ndarray]:
 
 
 def load_matrix_metadata(path: Path = MATRIX_METADATA_PATH) -> dict[str, Any]:
-    """Read ``data/returns_matrix.json``, the recorded description of the matrix."""
+    """Read ``data/returns_matrix.json``, the recorded description of the matrix.
+
+    Args:
+        path: Path to the metadata file.
+
+    Returns:
+        The parsed JSON document (digest, window, per-asset statistics).
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
     if not path.is_file():
         raise FileNotFoundError(f"{path} not found: run the consolidation stage first")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_test_set(path: Path | None = None) -> dict[str, Any]:
-    """Read the frozen test-set recipe."""
+    """Read the frozen test-set recipe.
+
+    Args:
+        path: File to read; ``config/test_set.yml`` when omitted.
+
+    Returns:
+        The parsed recipe (``data``, ``seeds``, ``configurations``, ``evaluation``), or an empty
+        mapping for an empty file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
     path = path or config_path("test_set")
     if not path.is_file():
         raise FileNotFoundError(f"{path} not found")
@@ -281,7 +313,11 @@ class GbmParams:
 
     @property
     def n_assets(self) -> int:
-        """Number of assets."""
+        """Number of assets.
+
+        Returns:
+            Length of ``mu``.
+        """
         return self.mu.size
 
     def factor(self) -> np.ndarray:
@@ -303,7 +339,11 @@ class GbmParams:
             return eigenvectors * np.sqrt(eigenvalues)
 
     def to_mapping(self) -> dict[str, Any]:
-        """Serialisable form, with plain Python floats."""
+        """Serialisable form, with plain Python floats.
+
+        Returns:
+            Mapping with ``assets``, ``mu`` and ``sigma`` as lists.
+        """
         return {
             "assets": list(self.assets),
             "mu": [float(value) for value in self.mu],
@@ -312,7 +352,14 @@ class GbmParams:
 
     @classmethod
     def from_mapping(cls, mapping: dict[str, Any]) -> "GbmParams":
-        """Rebuild from the parsed YAML document."""
+        """Rebuild from the parsed YAML document.
+
+        Args:
+            mapping: Parsed document holding ``assets``, ``mu`` and ``sigma``; other keys are ignored.
+
+        Returns:
+            The parameters, validated by ``__post_init__``.
+        """
         return cls(
             assets=tuple(str(name) for name in mapping["assets"]),
             mu=np.asarray(mapping["mu"], dtype=np.float64),
@@ -335,7 +382,17 @@ def fit_gbm(matrix: np.ndarray, columns: tuple[str, ...]) -> GbmParams:
 
 
 def load_gbm_params(path: Path | None = None) -> GbmParams:
-    """Read ``config/gbm_params.yml``."""
+    """Read ``config/gbm_params.yml``.
+
+    Args:
+        path: File to read; ``config/gbm_params.yml`` when omitted.
+
+    Returns:
+        Mean vector and covariance of the monthly log gross returns.
+
+    Raises:
+        FileNotFoundError: If the file does not exist; ``--fit-gbm`` writes it.
+    """
     path = path or config_path("gbm_params")
     if not path.is_file():
         raise FileNotFoundError(
@@ -1122,7 +1179,16 @@ def _default_configuration(mode: str, block_length: float | None, test_set: dict
 
 
 def write_stylized_facts(document: dict[str, Any], directory: Path = CHECKS_DIRECTORY) -> Path:
-    """Write the statistics where subsection 4.4 reads them from."""
+    """Write the statistics where subsection 4.4 reads them from.
+
+    Args:
+        document: Output of :func:`stylized_facts`; its ``mode`` and ``block_length`` name the file.
+        directory: Output directory, ``results/checks`` by default.
+
+    Returns:
+        Path of the written ``stylized_facts_<mode>[_<L>].json``, which also carries the command
+        line, git commit and environment fingerprint.
+    """
     block_length = document["block_length"]
     suffix = f"_{int(block_length)}" if block_length else ""
     directory.mkdir(parents=True, exist_ok=True)
@@ -1186,6 +1252,15 @@ def _print_stylized_facts(mode: str, block_length: float | None, n_scenarios: in
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point: ``python -m portfolio_manager.generator``.
+
+    Args:
+        argv: Arguments to parse; ``sys.argv`` when omitted.
+
+    Returns:
+        Process exit code: 0 on success, 1 on a failed check, a digest mismatch, or a file, value or
+        key error.
+    """
     parser = argparse.ArgumentParser(description="Scenario generator: parametric and block bootstrap modes.")
     parser.add_argument("--fit-gbm", action="store_true", help="estimate and write config/gbm_params.yml")
     parser.add_argument("--test-set", action="store_true", help="build every active frozen configuration")

@@ -103,12 +103,21 @@ class ProblemConfig:
 
     @property
     def cost_rate(self) -> float:
-        """``lambda`` as a rate per unit of turnover."""
+        """``lambda`` as a rate per unit of turnover.
+
+        Returns:
+            ``cost_bp`` of ``config/problem.yml`` converted from basis points to a fraction
+            (10 bp -> 0.001).
+        """
         return self.cost_bp * BASIS_POINT
 
     @property
     def total_contributions_usd(self) -> float:
-        """What the investor puts in over the whole horizon, ignoring any return."""
+        """What the investor puts in over the whole horizon, ignoring any return.
+
+        Returns:
+            ``c * T`` in USD.
+        """
         return self.monthly_contribution_usd * self.horizon_months
 
 
@@ -614,7 +623,19 @@ def rollout(
 
 
 def terminal_reward(terminal_wealth: np.ndarray, goal: float, objective: str) -> np.ndarray:
-    """Equation ``eq:recompensa``, vectorised over scenarios."""
+    """Equation ``eq:recompensa``, vectorised over scenarios.
+
+    Args:
+        terminal_wealth: ``W_T`` per scenario, in USD.
+        goal: ``G``, in USD.
+        objective: ``lpm2`` for ``-(max(0, 1 - W_T / G))^2`` or ``indicator`` for ``1{W_T >= G}``.
+
+    Returns:
+        Terminal reward per scenario, ``float64``.
+
+    Raises:
+        ValueError: If the objective is not one this module implements.
+    """
     terminal_wealth = np.asarray(terminal_wealth, dtype=np.float64)
     if objective == OBJECTIVE_LPM2:
         return -(np.clip(1.0 - terminal_wealth / goal, 0.0, None) ** 2)
@@ -875,7 +896,16 @@ def _toy_path_check() -> dict[str, Any]:
 
 
 def write_environment_checks(document: dict[str, Any], directory: Path = CHECKS_DIRECTORY) -> Path:
-    """Write the numbers where subsection 4.4 reads them from."""
+    """Write the numbers where subsection 4.4 reads them from.
+
+    Args:
+        document: Output of :func:`environment_checks`.
+        directory: Destination folder; ``results/checks/`` by default.
+
+    Returns:
+        Path of the written ``env_checks.json``, which also carries the command line, UTC time,
+        git commit and environment fingerprint.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "env_checks.json"
     payload = {
@@ -893,6 +923,14 @@ def write_environment_checks(document: dict[str, Any], directory: Path = CHECKS_
 # Command line
 # ======================================================================================
 def main(argv: list[str] | None = None) -> int:
+    """Command line: ``python -m portfolio_manager.env --checks``.
+
+    Args:
+        argv: Arguments to parse; ``sys.argv[1:]`` when omitted.
+
+    Returns:
+        Exit status: 0 when every check passes (or with no flag, after printing the help), 1 otherwise.
+    """
     parser = argparse.ArgumentParser(description="Simulation environment: the four checks of thesis 4.3.4.")
     parser.add_argument("--checks", action="store_true", help="run the four checks and write their numbers")
     parser.add_argument("--seed", type=int, default=None, help="unused by --checks, whose seeds are declared")

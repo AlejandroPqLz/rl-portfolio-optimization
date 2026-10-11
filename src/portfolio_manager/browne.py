@@ -79,17 +79,29 @@ class BrowneParameters:
 
     @property
     def premium(self) -> float:
-        """``mu - r``, the risk premium per month."""
+        """``mu - r``, the risk premium per month.
+
+        Returns:
+            The monthly premium.
+        """
         return self.mu - self.r
 
     @property
     def theta(self) -> float:
-        """Market price of risk ``(mu - r) / sigma``, equation (2.6) with one stock."""
+        """Market price of risk ``(mu - r) / sigma``, equation (2.6) with one stock.
+
+        Returns:
+            ``theta``, per square root of a month.
+        """
         return self.premium / self.sigma
 
     @property
     def satisfies_paper_assumption(self) -> bool:
-        """Whether ``mu >= r``, which section 1 records the paper as assuming."""
+        """Whether ``mu >= r``, which section 1 records the paper as assuming.
+
+        Returns:
+            True when the premium is non-negative.
+        """
         return self.premium >= 0.0
 
     def require_paper_assumption(self) -> None:
@@ -156,6 +168,15 @@ def relative_wealth(
     Wealth measured against the goal discounted back to the present. It is the only combination of
     wealth, time and the riskless rate the solution depends on, which is why Table 1 is a table in
     one variable.
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal`` (goal units when ``goal = 1``).
+        months_remaining: Time to the horizon ``T - t``, in months.
+        r: Continuously compounded monthly riskless rate.
+        goal: The target ``b``.
+
+    Returns:
+        Relative wealth ``z``, elementwise.
     """
     return np.asarray(wealth, dtype=np.float64) / goal * np.exp(r * np.asarray(months_remaining, dtype=np.float64))
 
@@ -171,6 +192,12 @@ def value(
     ``V(t, x; b) = Phi( Phi^{-1}(z) + sqrt(theta^2 (T - t)) )`` for ``0 < x < b e^{-r(T-t)}``, and
     one at or above that, where the bond alone reaches the goal and the optimal stock holding is
     zero (Remark 3.1).
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal`` (goal units when ``goal = 1``).
+        months_remaining: Time to the horizon ``T - t``, in months.
+        parameters: Monthly coefficients of the closed form.
+        goal: The target ``b``.
 
     Returns:
         The probability of reaching the goal under the optimal control.
@@ -198,6 +225,16 @@ def optimal_amount(
     The paper notes of this expression that "it is only for this single-stock case that the optimal
     control is in fact independent of the underlying drift parameter mu" (p. 557), which is the
     third check of section 6: ``mu`` appears nowhere on the right.
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal`` (goal units when ``goal = 1``).
+        months_remaining: Time to the horizon ``T - t``, in months.
+        parameters: Monthly coefficients of the closed form.
+        goal: The target ``b``.
+
+    Returns:
+        Amount in the stock, in the units of ``goal``; zero at or above the discounted goal, at
+        non-positive wealth and when no time remains.
     """
     z = relative_wealth(wealth, months_remaining, parameters.r, goal)
     remaining = np.asarray(months_remaining, dtype=np.float64)
@@ -223,6 +260,16 @@ def optimal_fraction(
 
     Below the boundary of :func:`borrowing_boundary` this exceeds one, and the solver cannot follow
     it: the comparison is confined to the region where it does not.
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal`` (goal units when ``goal = 1``).
+        months_remaining: Time to the horizon ``T - t``, in months.
+        parameters: Monthly coefficients of the closed form.
+        goal: The target ``b``.
+
+    Returns:
+        Fraction of wealth in the stock; zero at or above the discounted goal, infinity elsewhere
+        outside the interior (non-positive wealth, or no time remaining below the discounted goal).
     """
     z = relative_wealth(wealth, months_remaining, parameters.r, goal)
     remaining = np.asarray(months_remaining, dtype=np.float64)
@@ -244,6 +291,12 @@ def inverse_mills(nu: np.ndarray | float) -> np.ndarray:
     Both terms underflow together far into the left tail, where the ratio is near ``|nu|`` and
     perfectly well behaved; taking the difference of the logarithms keeps it that way instead of
     returning zero divided by zero.
+
+    Args:
+        nu: Argument, scalar or array.
+
+    Returns:
+        The ratio ``phi(nu) / Phi(nu)``, elementwise.
     """
     nu = np.asarray(nu, dtype=np.float64)
     return np.exp(norm.logpdf(nu) - norm.logcdf(nu))
@@ -293,7 +346,17 @@ def borrows(
     parameters: BrowneParameters,
     goal: float = 1.0,
 ) -> np.ndarray:
-    """Whether the optimal control asks for leverage at this state."""
+    """Whether the optimal control asks for leverage at this state.
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal`` (goal units when ``goal = 1``).
+        months_remaining: Time to the horizon ``T - t``, in months.
+        parameters: Monthly coefficients of the closed form.
+        goal: The target ``b``.
+
+    Returns:
+        Boolean array, True where :func:`optimal_fraction` is at least one.
+    """
     return np.asarray(optimal_fraction(wealth, months_remaining, parameters, goal)) >= 1.0
 
 
@@ -305,6 +368,14 @@ def income_present_value(income: float, horizon: float, r: float) -> float:
 
     The discounted value at time zero of the whole income stream, which is what Theorem 7.1
     subtracts from the discounted goal.
+
+    Args:
+        income: Constant income rate ``l``, per month.
+        horizon: ``T``, in months.
+        r: Continuously compounded monthly riskless rate.
+
+    Returns:
+        Present value at time zero of the income stream.
     """
     if r == 0.0:
         return float(income * horizon)
@@ -314,14 +385,34 @@ def income_present_value(income: float, horizon: float, r: float) -> float:
 def kappa(
     wealth: np.ndarray | float, elapsed: np.ndarray | float, income: float, r: float
 ) -> np.ndarray:
-    """``kappa(x, t) = e^{-rt} x - integral_0^t e^{-rs} l(s) ds``, equation (7.2)."""
+    """``kappa(x, t) = e^{-rt} x - integral_0^t e^{-rs} l(s) ds``, equation (7.2).
+
+    Args:
+        wealth: Wealth ``x``.
+        elapsed: Time since the start ``t``, in months.
+        income: Constant income rate ``l``, per month.
+        r: Continuously compounded monthly riskless rate.
+
+    Returns:
+        ``kappa``, elementwise.
+    """
     elapsed = np.asarray(elapsed, dtype=np.float64)
     received = income * elapsed if r == 0.0 else income * (1.0 - np.exp(-r * elapsed)) / r
     return np.exp(-r * elapsed) * np.asarray(wealth, dtype=np.float64) - received
 
 
 def income_lambda(goal: float, horizon: float, income: float, r: float) -> float:
-    """``Lambda = b e^{-rT} - integral_0^T e^{-rs} l(s) ds``, equation (7.3)."""
+    """``Lambda = b e^{-rT} - integral_0^T e^{-rs} l(s) ds``, equation (7.3).
+
+    Args:
+        goal: The target ``b``.
+        horizon: ``T``, in months.
+        income: Constant income rate ``l``, per month.
+        r: Continuously compounded monthly riskless rate.
+
+    Returns:
+        ``Lambda``.
+    """
     return float(goal * np.exp(-r * horizon) - income_present_value(income, horizon, r))
 
 
@@ -341,6 +432,20 @@ def income_value(
     Not part of the three mandatory checks: D72 reduced the validation to the value, the policy in
     the no-leverage region and the independence from the drift, and moved this to P1. The runner
     reaches it only behind an explicit flag.
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal``.
+        elapsed: Time since the start ``t``, in months.
+        parameters: Monthly coefficients of the closed form.
+        goal: The target ``b``.
+        horizon: ``T``, in months.
+        income: Constant income rate ``l``, per month.
+
+    Returns:
+        The probability of reaching the goal under the optimal control.
+
+    Raises:
+        ValueError: If ``Lambda <= 0``, where the income alone reaches the goal.
     """
     scale = income_lambda(goal, horizon, income, parameters.r)
     if scale <= 0.0:
@@ -372,6 +477,21 @@ def income_amount(
     By Remark 7.1 the stock holding stops at ``kappa >= Lambda``, where bond and future income
     reach the goal alone (7.6), and at ``kappa <= 0``, where wealth has fallen to what the income
     alone would have earned in the bond (7.7). Both are returned as zero.
+
+    Args:
+        wealth: Wealth ``x``, in the units of ``goal``.
+        elapsed: Time since the start ``t``, in months.
+        parameters: Monthly coefficients of the closed form.
+        goal: The target ``b``.
+        horizon: ``T``, in months.
+        income: Constant income rate ``l``, per month.
+
+    Returns:
+        Amount in the stock, in the units of ``goal``; zero outside ``0 < kappa < Lambda`` and when
+        no time remains.
+
+    Raises:
+        ValueError: If ``Lambda <= 0``.
     """
     scale = income_lambda(goal, horizon, income, parameters.r)
     if scale <= 0.0:

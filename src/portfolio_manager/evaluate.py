@@ -131,21 +131,39 @@ class Costs:
 
     @property
     def rate(self) -> float:
-        """``lambda`` of the transition, from the evaluation cost alone."""
+        """``lambda`` of the transition, from the evaluation cost alone.
+
+        Returns:
+            The evaluation cost as a rate per unit of turnover (basis points times ``1e-4``).
+        """
         return self.evaluate_bp * 1e-4
 
     @property
     def differ(self) -> bool:
+        """Whether the training and the evaluation cost are different numbers.
+
+        Returns:
+            ``True`` when ``train_bp != evaluate_bp``; it decides the file-name suffix.
+        """
         return self.train_bp != self.evaluate_bp
 
     @property
     def suffix(self) -> str:
-        """File-name suffix: both costs whenever they differ, the single one when they agree."""
+        """File-name suffix: both costs whenever they differ, the single one when they agree.
+
+        Returns:
+            ``"train10bp_eval25bp"`` when the costs differ, ``"10bp"`` when they agree.
+        """
         if self.differ:
             return f"train{self.train_bp:g}bp_eval{self.evaluate_bp:g}bp"
         return f"{self.evaluate_bp:g}bp"
 
     def describe(self) -> str:
+        """Human-readable statement of both costs, for the console output.
+
+        Returns:
+            One line naming the training and the evaluation cost in basis points.
+        """
         if self.differ:
             return f"trained at {self.train_bp:g} bp, evaluated at {self.evaluate_bp:g} bp"
         return f"{self.evaluate_bp:g} bp, training and evaluation"
@@ -157,6 +175,14 @@ def resolve_costs(cost_bp: float | None, train_cost_bp: float | None, problem: P
     ``--train-cost-bp`` defaults to ``--cost-bp`` rather than to the configured base case: an agent
     is evaluated on the problem it was trained for unless the caller says otherwise. The sweep is
     the exception and states the training cost explicitly.
+
+    Args:
+        cost_bp: ``--cost-bp``, in basis points; ``cost_bp`` of ``config/problem.yml`` when ``None``.
+        train_cost_bp: ``--train-cost-bp``, in basis points; the evaluation cost when ``None``.
+        problem: Base case read from ``config/problem.yml``.
+
+    Returns:
+        Both costs, in basis points.
     """
     evaluate_bp = problem.cost_bp if cost_bp is None else float(cost_bp)
     train_bp = evaluate_bp if train_cost_bp is None else float(train_cost_bp)
@@ -172,6 +198,14 @@ def bootstrap_blocks(rng: np.random.Generator, n_scenarios: int, n_bootstrap: in
     Drawn once and reused across policies, so that every strategy is scored on the same resampled
     worlds. Independent draws per policy would leave the intervals incomparable and would throw
     away the pairing the frozen test set exists to provide.
+
+    Args:
+        rng: Bootstrap stream, seeded once by the caller.
+        n_scenarios: Number of test scenarios, which is also the size of each resample.
+        n_bootstrap: Total number of resamples to draw.
+
+    Yields:
+        Integer arrays of shape ``(chunk, n_scenarios)``, at most ``BOOTSTRAP_CHUNK`` rows each.
     """
     for start in range(0, n_bootstrap, BOOTSTRAP_CHUNK):
         size = min(BOOTSTRAP_CHUNK, n_bootstrap - start)
@@ -189,10 +223,10 @@ def metrics(
     """The point estimates of thesis 4.2.4 for one policy.
 
     Args:
-        terminal_wealth: ``(n,)`` terminal wealth per scenario.
-        reward: ``(n,)`` terminal reward per scenario.
-        total_turnover: ``(n,)`` turnover summed over the horizon.
-        goal: ``G``.
+        terminal_wealth: ``(n,)`` terminal wealth per scenario, in USD.
+        reward: ``(n,)`` terminal reward per scenario, in goal units.
+        total_turnover: ``(n,)`` turnover summed over the horizon (purchases plus sales).
+        goal: ``G``, in USD.
         horizon: ``T`` in months.
 
     Returns:
@@ -229,9 +263,9 @@ def evaluate_policies(
 
     Args:
         policies: Mapping from name to callable.
-        scenarios: ``(n, T, N)`` frozen tensor.
-        problem: Base case; read from configuration when omitted.
-        cost_rate: Overrides ``lambda``, for the robustness sweep.
+        scenarios: ``(n, T, N)`` frozen tensor of monthly simple returns.
+        problem: Base case; read from ``config/problem.yml`` when omitted.
+        cost_rate: Overrides ``lambda`` (a rate, not basis points), for the robustness sweep.
         seed: Seed of the bootstrap stream.
         n_bootstrap: Resamples behind each interval.
         confidence: Nominal coverage.
@@ -322,6 +356,14 @@ def agent_run_directory(
     read the cost from ``config/problem.yml`` and so scored agents trained at ten basis points
     into a table named and documented for zero. A cost that is not passed is now a signature
     error rather than a silently wrong directory.
+
+    Args:
+        configuration: Name of the frozen recipe in ``config/test_set.yml``, e.g. ``"B_L12"``.
+        train_cost_bp: Cost the agents were trained under, in basis points.
+        runs_directory: Root of the training runs.
+
+    Returns:
+        ``runs_directory / "<configuration>_<cost>bp"``, which may not exist.
     """
     from portfolio_manager.train import run_directory_name
 
@@ -342,6 +384,14 @@ def trained_policies(
     **keyword-only and required**: there is no correct default, and the one that used to be here
     was the defect.
 
+    Args:
+        configuration: Name of the frozen recipe in ``config/test_set.yml``.
+        runs_directory: Root of the training runs.
+        train_cost_bp: Cost the agents were trained under, in basis points.
+
+    Returns:
+        Mapping from ``"agent_seed_<n>"`` to the deterministic policy of that seed, in seed order.
+
     Raises:
         FileNotFoundError: If no run directory exists for this cost, or it holds no seed. Silence
             here would produce a table whose agent rows are simply missing, or worse, a table of
@@ -360,7 +410,15 @@ def trained_policies(
 
 
 def table_policy(configuration: str, directory: Path = DP_DIRECTORY) -> dict[str, Policy]:
-    """The tabulated optimum, if the solver has produced one for this configuration."""
+    """The tabulated optimum, if the solver has produced one for this configuration.
+
+    Args:
+        configuration: Name of the frozen recipe, which names ``<directory>/<configuration>.npz``.
+        directory: Where the solver writes its tables.
+
+    Returns:
+        ``{"dp_table": policy}`` when the table exists, an empty mapping otherwise.
+    """
     path = directory / f"{configuration}.npz"
     if not path.is_file():
         return {}
@@ -536,9 +594,19 @@ def agent_comparisons(
     first is available wherever the comparators were scored, so a configuration without a table
     still gets the hypothesis it was run for.
 
-    Returns one row per agent that has at least one reference to be compared against, and an
-    empty list otherwise: ``--policies agent`` scores neither reference, and a row carrying no
-    comparison is not a result.
+    Args:
+        policies: Every policy scored, keyed by name; only names starting with ``agent_`` are
+            compared.
+        success: Per-scenario success flags of each policy, from ``evaluate_policies``.
+        scenarios: ``(n, T, N)`` frozen tensor of monthly simple returns.
+        problem: Base case, needed by the discrepancy index.
+        directory: Where the solver writes its tables.
+        configuration: Name of the frozen recipe, which names the table file.
+
+    Returns:
+        One row per agent that has at least one reference to be compared against, and an empty
+        list otherwise: ``--policies agent`` scores neither reference, and a row carrying no
+        comparison is not a result.
     """
     path = directory / f"{configuration}.npz"
     table = np.load(path) if path.is_file() and TABLE_POLICY in success else None
@@ -645,7 +713,15 @@ COLUMNS = (
 
 
 def write_table(table: dict[str, dict[str, float]], path: Path) -> Path:
-    """Write the results table as CSV, one row per policy."""
+    """Write the results table as CSV, one row per policy.
+
+    Args:
+        table: Mapping from policy name to its metrics; keys outside ``COLUMNS`` are dropped.
+        path: Destination CSV file; parent directories are created.
+
+    Returns:
+        ``path``.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         writer = csv.DictWriter(handle, fieldnames=COLUMNS, extrasaction="ignore", lineterminator="\n")
@@ -832,6 +908,12 @@ def reference_digest(table: dict[str, dict[str, float]]) -> str:
     Serialised with sorted keys and full float precision, so the digest changes when and only when
     a figure changes. Timestamps, paths and the order policies happen to be scored in are excluded
     deliberately: they move on every run and would make the guard useless.
+
+    Args:
+        table: Mapping from policy name to its metrics.
+
+    Returns:
+        Hex SHA-256 of the canonical JSON serialisation.
     """
     canonical = {name: {key: repr(value) for key, value in sorted(row.items())} for name, row in sorted(table.items())}
     return hashlib.sha256(json.dumps(canonical, sort_keys=True).encode("utf-8")).hexdigest()
@@ -1033,6 +1115,20 @@ def run_terciles(
 
     Takes both costs for the same reason the metrics table does: the third hypothesis is about
     where an agent's advantage sits, and which agent that is depends on the training cost.
+
+    Args:
+        test_set: Name of the frozen recipe in ``config/test_set.yml``.
+        cost_bp: Evaluation cost in basis points; ``cost_bp`` of ``config/problem.yml`` when ``None``.
+        which: ``"baselines"``, ``"dp"``, ``"agent"`` or ``"all"``.
+        train_cost_bp: Training cost in basis points; the evaluation cost when ``None``.
+        argv: Command line recorded in the side-car.
+        results_directory: Where ``terciles_<test_set>_<suffix>.json`` is written.
+
+    Returns:
+        The tercile document, the path written and the two costs.
+
+    Raises:
+        ValueError: If ``which`` selects no policy.
     """
     problem = load_problem()
     recipe = load_test_set()
@@ -1158,6 +1254,14 @@ def _print_reference_run(document: dict[str, Any]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point: ``python -m portfolio_manager.evaluate``.
+
+    Args:
+        argv: Arguments to parse; ``sys.argv`` when ``None``.
+
+    Returns:
+        Process exit code: 0 on success or MATCH, 1 on a failure or a reference-run MISMATCH.
+    """
     parser = argparse.ArgumentParser(description="Evaluation protocol: score policies on the frozen test set.")
     parser.add_argument(
         "--policies",

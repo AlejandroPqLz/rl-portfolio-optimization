@@ -13,7 +13,7 @@ of the comparison either.
 What is read, and where it comes from
 -------------------------------------
 ``results/dp/<config>.npz``            value, policy and the count of optimal actions per state
-``results/runs/<config>/seed_*/``      the training metrics and the saved policies
+``results/runs/<config>_<bp>bp/seed_*/`` the training metrics and the saved policies
 ``results/*.csv``                      the tables of ``evaluate.py``, quantiles included
 ``data/returns_matrix.csv``            the historical matrix, for the variance ratio alone
 
@@ -96,7 +96,14 @@ English, so the translation happens once and in one place rather than inline at 
 # Reading what the pipeline wrote
 # ======================================================================================
 def read_table(path: Path) -> dict[str, dict[str, float]]:
-    """Read a results table written by ``evaluate.py``."""
+    """Read a results table written by ``evaluate.py``.
+
+    Args:
+        path: CSV file with a ``policy`` column and one numeric column per metric.
+
+    Returns:
+        Mapping from policy name to its metrics as floats; empty cells become ``nan``.
+    """
     with path.open(encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     table: dict[str, dict[str, float]] = {}
@@ -113,6 +120,15 @@ def read_training_metrics(
 
     ``train_cost_bp`` selects the run directory, since an agent trained at one cost is a different
     agent from one trained at another; the base case is used when it is omitted.
+
+    Args:
+        configuration: Name of the frozen recipe, e.g. ``"A_gbm"``.
+        runs: Root of the training runs.
+        train_cost_bp: Training cost in basis points; ``cost_bp`` of ``config/problem.yml`` when
+            ``None``.
+
+    Returns:
+        Mapping from ``"seed_<n>"`` to the parsed ``metrics.json``; empty if the directory holds none.
     """
     from portfolio_manager.env import load_problem
     from portfolio_manager.train import run_directory_name
@@ -135,7 +151,15 @@ def _save(figure: plt.Figure, path: Path) -> Path:
 # Policy maps
 # ======================================================================================
 def equity_weight_map(policy: np.ndarray, column: int = 0) -> np.ndarray:
-    """The weight of one column across the table, as a map over wealth and time."""
+    """The weight of one column across the table, as a map over wealth and time.
+
+    Args:
+        policy: ``(n_wealth, T, N)`` tabulated portfolios.
+        column: Asset column to extract; 0 is ``us_equity``.
+
+    Returns:
+        ``(n_wealth, T)`` array of that asset's weight.
+    """
     return np.asarray(policy, dtype=np.float64)[:, :, column]
 
 
@@ -160,6 +184,20 @@ def plot_policy_maps(
     pattern on the part of the figure that carries no information, and the eye would read it as the
     optimal policy. The white region is the honest statement that the comparison of the first
     hypothesis has nothing to say there.
+
+    The agent panels are drawn only when ``<runs>/<configuration>_<bp>bp/<seed>/policy.zip``
+    exists; the agent is queried with zero remaining contributions on every node.
+
+    Args:
+        configuration: Name of the frozen recipe; selects ``<dp_directory>/<configuration>.npz``.
+        seed: Run sub-directory of the plotted agent, e.g. ``"seed_0"``.
+        train_cost_bp: Cost the plotted agent was trained under, in basis points.
+        directory: Where the figure is written.
+        dp_directory: Where the solver tables live.
+        runs: Root of the training runs.
+
+    Returns:
+        Path of ``policy_maps_<configuration>.png``.
     """
     table = np.load(dp_directory / f"{configuration}.npz")
     tabulated = equity_weight_map(table["policy"])
@@ -235,6 +273,20 @@ def plot_training_curves(
     Five seeds are plotted individually rather than averaged. The spread between them is part of
     the result: a mean curve would hide whether the method is reliable or whether one seed carried
     the configuration.
+
+    The run directory is the one of the base-case cost in ``config/problem.yml``: this function
+    takes no training cost.
+
+    Args:
+        configuration: Name of the frozen recipe.
+        directory: Where the figure is written.
+        runs: Root of the training runs.
+
+    Returns:
+        Path of ``training_curves_<configuration>.png``.
+
+    Raises:
+        FileNotFoundError: If no seed has a ``metrics.json``.
     """
     metrics = read_training_metrics(configuration, runs)
     if not metrics:
@@ -271,6 +323,14 @@ def plot_terminal_wealth(
     Drawn from the five quantiles the evaluation wrote and not from the raw outcomes, which is the
     point of D73: the figure can show only what was computed, so it cannot disagree with the table
     beside it in the memoir.
+
+    Args:
+        table_path: Results CSV written by ``evaluate.py``.
+        goal: Goal in USD, drawn as a dashed line when given.
+        directory: Where the figure is written.
+
+    Returns:
+        Path of ``terminal_wealth_<table stem>.png``.
     """
     table = read_table(table_path)
     names = list(table)
@@ -376,6 +436,15 @@ def plot_variance_ratio(*, directory: Path = FIGURES_DIRECTORY) -> tuple[Path, d
     is flat at one by design; what the historical curve does at three to ten years is the size of
     what was destroyed, and it is reported with its interval because at ten years the estimate
     rests on about three and a half independent windows.
+
+    Reads ``data/returns_matrix.csv`` through ``load_matrix`` and converts the monthly simple
+    returns to log returns; horizons are ``VARIANCE_RATIO_YEARS`` in years.
+
+    Args:
+        directory: Where the figure is written.
+
+    Returns:
+        Path of ``variance_ratio.png`` and, per asset, the list of ``variance_ratio`` results.
     """
     columns, matrix = load_matrix()
     log_returns = np.log1p(matrix)
@@ -414,6 +483,14 @@ def plot_variance_ratio(*, directory: Path = FIGURES_DIRECTORY) -> tuple[Path, d
 # Command line
 # ======================================================================================
 def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point: ``python -m portfolio_manager.plots``.
+
+    Args:
+        argv: Arguments to parse; ``sys.argv`` when ``None``.
+
+    Returns:
+        Process exit code: 0 when the figures were written or skipped, 1 on a failure.
+    """
     parser = argparse.ArgumentParser(description="Figures for section 4.4. Reads results/, computes no result.")
     parser.add_argument("--all", action="store_true", help="every figure for which the inputs exist")
     parser.add_argument("--policy-maps", action="store_true", help="the tabulated optimum against the agent")

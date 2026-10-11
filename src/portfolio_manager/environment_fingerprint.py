@@ -40,6 +40,10 @@ def collect_fingerprint() -> dict[str, Any]:
 
     Every field is retrieved defensively: an unavailable descriptor degrades to ``None`` instead of raising, so that
     recording a fingerprint never aborts a run that would otherwise have succeeded.
+
+    Returns:
+        Mapping from descriptor name (Python, NumPy, BLAS, PyTorch, Gymnasium and Stable-Baselines3
+        versions, platform, machine, thread count, device) to its value or ``None``.
     """
 
     try:
