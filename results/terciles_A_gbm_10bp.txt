@@ -1,0 +1,40 @@
+terciles on A_gbm, 10 bp, training and evaluation, split by W/G at month 60 of each policy's own trajectory
+
+policy                   behind      on_pace        ahead
+---------------------------------------------------------
+constant_mix             0.7807       0.8935       0.9600
+glide_path               0.7762       0.9026       0.9678
+merton_gamma_2           0.7678       0.8801       0.9522
+merton_gamma_5           0.7554       0.8708       0.9469
+equal_weight             0.7485       0.8714       0.9444
+dp_table                 0.7011       0.8939       0.9733
+agent_seed_0             0.8023       0.9029       0.9657
+agent_seed_1             0.7855       0.9269       0.9850
+agent_seed_2             0.7987       0.8953       0.9579
+agent_seed_3             0.8200       0.9113       0.9655
+agent_seed_4             0.7341       0.8593       0.9235
+
+paired against glide_path inside each third, every seed:
+  policy             tercile          n    agent      ref      diff          p  dropped
+  -------------------------------------------------------------------------------------
+  agent_seed_0       behind        4914   0.7910   0.7625   +0.0285   2.47e-07     3506
+  agent_seed_0       on_pace       3451   0.9067   0.9047   +0.0020      0.728     6430
+  agent_seed_0       ahead         4864   0.9692   0.9733   -0.0041      0.128     3606
+  agent_seed_1       behind        5475   0.7722   0.7647   +0.0075       0.18     2384
+  agent_seed_1       on_pace       4270   0.9302   0.9070   +0.0232    5.9e-07     4792
+  agent_seed_1       ahead         5409   0.9878   0.9717   +0.0161   5.59e-13     2516
+  agent_seed_2       behind        5148   0.7869   0.7624   +0.0245   1.92e-08     3038
+  agent_seed_2       on_pace       3770   0.8992   0.9032   -0.0040      0.353     5792
+  agent_seed_2       ahead         5124   0.9629   0.9737   -0.0107    1.7e-06     3086
+  agent_seed_3       behind        5160   0.8060   0.7634   +0.0426   2.15e-17     3014
+  agent_seed_3       on_pace       3702   0.9133   0.8982   +0.0151    0.00168     5928
+  agent_seed_3       ahead         5018   0.9679   0.9733   -0.0054     0.0517     3298
+  agent_seed_4       behind        4856   0.7164   0.7617   -0.0453   2.58e-14     3622
+  agent_seed_4       on_pace       3239   0.8549   0.9018   -0.0469   3.42e-15     6854
+  agent_seed_4       ahead         4495   0.9279   0.9737   -0.0458   3.07e-33     4344
+
+  dropped: scenarios the two policies place in different thirds. They are excluded so
+  the comparison stays paired on the same scenarios rather than on two different samples.
+
+wrote results/terciles_A_gbm_10bp.json
+PRELIMINARY: these figures are not frozen until the freeze of 11 October.

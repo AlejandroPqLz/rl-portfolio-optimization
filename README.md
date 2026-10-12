@@ -138,6 +138,7 @@ src/portfolio_manager/
   plots.py                    figures for section 4.4; reads results/, computes nothing
   environment_fingerprint.py  environment descriptors written into every side-car
 tests/                        pytest; `slow` marks anything that trains or re-solves
+scripts/browne_caps.py        A55 driver (Browne caps 3/10/30, restricted set); outside the package and the freeze
 results/                      outputs with JSON side-cars (layout below)
 docs/                         project documents (Spanish); not versioned
 docs/memoria/                 thesis LaTeX sources

@@ -1,4 +1,5 @@
 {
+  "agent_run_directory": "results/runs/A_gbm_0bp",
   "command_line": [
     "/Users/alejandro/projects/msc_ia/rl-portfolio-optimization/src/portfolio_manager/evaluate.py",
     "--terciles",
@@ -7,6 +8,8 @@
     "--test-set",
     "A_gbm",
     "--cost-bp",
+    "0",
+    "--train-cost-bp",
     "0"
   ],
   "config_sha256": {
@@ -15,6 +18,7 @@
     "test_set": "40c366886f8a169afe7162e3727aef35865ef4c27a8947db76624a3c8ceaf5b0"
   },
   "cost_bp": 0.0,
+  "costs_differ": false,
   "effective_seed": 20260809,
   "environment_differences": [],
   "environment_fingerprint": {
@@ -31,8 +35,9 @@
     "torch_num_threads": 6,
     "torch_version": "2.13.0"
   },
+  "evaluation_cost_bp": 0.0,
   "frozen_digest_verdict": "match",
-  "git_commit": "d9eaa1da5105439ed8c7b489a0bfc53799fa21d9",
+  "git_commit": "79230e589dbd542be5b7aaae41d6dbf352bb2935",
   "horizon_months": 120,
   "mean_block_length_months": null,
   "midpoint_month": 60,
@@ -57,5 +62,6 @@
   "status": "preliminary until the figures freeze",
   "tensor_sha256": "9dd8165be1235dfb2e5752a3ad7581360a72084e12f51c617f9a4297065fea99",
   "test_set": "A_gbm",
-  "written_at_utc": "2026-10-10T16:28:22+00:00"
+  "training_cost_bp": 0.0,
+  "written_at_utc": "2026-10-12T16:37:32+00:00"
 }

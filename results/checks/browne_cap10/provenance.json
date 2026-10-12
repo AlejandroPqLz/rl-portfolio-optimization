@@ -1,0 +1,36 @@
+{
+  "cap": 10,
+  "closed_form_parameters": {
+    "mu": 0.009460469960160183,
+    "premium": 0.006626853478880044,
+    "r": 0.0028336164812801387,
+    "sigma": 0.044420714980801544,
+    "theta": 0.14918385446393972
+  },
+  "command_line": [
+    "scripts/browne_caps.py"
+  ],
+  "git_commit": "79230e589dbd542be5b7aaae41d6dbf352bb2935",
+  "grid_step": 0.02,
+  "n_quad": 5,
+  "override": {
+    "leverage.max_equity_weight": 10.0
+  },
+  "refinement": [
+    {
+      "n_wealth": 801,
+      "steps_per_month": 1
+    },
+    {
+      "n_wealth": 1601,
+      "steps_per_month": 2
+    },
+    {
+      "n_wealth": 3201,
+      "steps_per_month": 4
+    }
+  ],
+  "seconds_elapsed": 177.0895903329365,
+  "validation_browne_yml_sha256": "3b6b6ca3b5ce9d95e08b405088acde12ca9e2071f80cdb5752488ba15ac4db76",
+  "written_at_utc": "2026-10-12T16:56:24+00:00"
+}

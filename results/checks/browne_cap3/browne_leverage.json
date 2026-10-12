@@ -1,0 +1,444 @@
+{
+  "action_grid": {
+    "grid_step": 0.02,
+    "max_equity_weight": 3.0,
+    "riskless_weight": "1 - w, negative above one: borrowing at r"
+  },
+  "bankruptcy_floor": {
+    "applied": true,
+    "binding": false,
+    "note": "wealth held at zero, which is absorbing because the transition multiplies it"
+  },
+  "comparison_set": {
+    "rule": "0 < z < 1, no margin and no boundary"
+  },
+  "fixed_set": {
+    "min_months_remaining": 1.0,
+    "min_z": 0.05,
+    "note": "diagnostic, not a threshold. 0 < z < 1 is not one set across the refinement pairs: a finer wealth grid reaches smaller z and a finer time step a shorter final period, both corners where the paper's control diverges, so the declared sequence takes its maxima over sets that grow. These are the same errors on the set common to every pair, z >= 0.05 and at least 1 month remaining.",
+    "policy_monotone_decrease": false,
+    "policy_sequence": [
+      46.409169390414846,
+      46.409169390414846,
+      46.409169390414846
+    ],
+    "value_monotone_decrease": true,
+    "value_sequence": [
+      0.8472085982252443,
+      0.823136800696979,
+      0.8001872650294725
+    ]
+  },
+  "levels": [
+    {
+      "max_reference_fraction": 65.08343520876058,
+      "n_actions": 151,
+      "n_nodes": 20259,
+      "n_wealth": 801,
+      "on_fixed_set": {
+        "max_reference_fraction": 46.409169390414846,
+        "n_nodes": 19304,
+        "policy_max_at": {
+          "dp_fraction": 0.0,
+          "months_remaining": 1.0,
+          "reference_fraction": 46.409169390414846,
+          "wealth_over_goal": 0.05,
+          "z": 0.050141881748359055
+        },
+        "policy_max_error": 46.409169390414846,
+        "policy_max_error_where_representable": 2.6485689438220383,
+        "policy_mean_error": 1.487354849226278,
+        "policy_signed_mean": -1.0908636075016116,
+        "policy_signed_mean_where_representable": 0.3283446499077225,
+        "reference_above_grid": {
+          "max_equity_weight": 3.0,
+          "n_nodes": 7774,
+          "share": 0.4027144633236635
+        },
+        "value_max_error": 0.8472085982252443,
+        "value_mean_error": 0.21438342056151513,
+        "value_signed_mean": -0.21438342056151513
+      },
+      "policy_max_at": {
+        "dp_fraction": 0.0,
+        "months_remaining": 1.0,
+        "reference_fraction": 65.08343520876058,
+        "wealth_over_goal": 0.005,
+        "z": 0.0050141881748359055
+      },
+      "policy_max_error": 65.08343520876058,
+      "policy_max_error_where_representable": 2.6485689438220383,
+      "policy_mean_error": 1.7479804115170845,
+      "policy_signed_mean": -1.3701795856987837,
+      "policy_signed_mean_where_representable": 0.3283446499077225,
+      "reference_above_grid": {
+        "max_equity_weight": 3.0,
+        "n_nodes": 8729,
+        "share": 0.4308702305148329
+      },
+      "seconds_elapsed": 0.19039645802695304,
+      "steps_per_month": 1,
+      "value_loss_of_reference_policy": {
+        "max": 0.5333333333333334,
+        "mean": 0.0004046429053612287,
+        "note": "what the table gives up by playing the paper's fraction instead of its own, in its own problem; clipped to the action grid where the paper asks for more"
+      },
+      "value_max_error": 0.8472085982252443,
+      "value_mean_error": 0.2128221550256674,
+      "value_signed_mean": -0.2128221550256674
+    },
+    {
+      "max_reference_fraction": 98.81940247885399,
+      "n_actions": 151,
+      "n_nodes": 81206,
+      "n_wealth": 1601,
+      "on_fixed_set": {
+        "max_reference_fraction": 46.409169390414846,
+        "n_nodes": 76882,
+        "policy_max_at": {
+          "dp_fraction": 0.0,
+          "months_remaining": 1.0,
+          "reference_fraction": 46.409169390414846,
+          "wealth_over_goal": 0.05,
+          "z": 0.050141881748359055
+        },
+        "policy_max_error": 46.409169390414846,
+        "policy_max_error_where_representable": 2.734839306173365,
+        "policy_mean_error": 1.4031730111308431,
+        "policy_signed_mean": -1.0400174525061485,
+        "policy_signed_mean_where_representable": 0.30227386467598183,
+        "reference_above_grid": {
+          "max_equity_weight": 3.0,
+          "n_nodes": 30888,
+          "share": 0.401758539059858
+        },
+        "value_max_error": 0.823136800696979,
+        "value_mean_error": 0.20596697732859282,
+        "value_signed_mean": -0.20596697732859282
+      },
+      "policy_max_at": {
+        "dp_fraction": 0.0,
+        "months_remaining": 0.5,
+        "reference_fraction": 98.81940247885399,
+        "wealth_over_goal": 0.0025,
+        "z": 0.0025035445309690187
+      },
+      "policy_max_error": 98.81940247885399,
+      "policy_max_error_where_representable": 2.734839306173365,
+      "policy_mean_error": 1.8073869113049421,
+      "policy_signed_mean": -1.4634428249534082,
+      "policy_signed_mean_where_representable": 0.3018851244063786,
+      "reference_above_grid": {
+        "max_equity_weight": 3.0,
+        "n_nodes": 35195,
+        "share": 0.4334039356697781
+      },
+      "seconds_elapsed": 0.7515176670858636,
+      "steps_per_month": 2,
+      "value_loss_of_reference_policy": {
+        "max": 0.5333333333333334,
+        "mean": 0.0001659293702168651,
+        "note": "what the table gives up by playing the paper's fraction instead of its own, in its own problem; clipped to the action grid where the paper asks for more"
+      },
+      "value_max_error": 0.8830425005204826,
+      "value_mean_error": 0.2059700860459133,
+      "value_signed_mean": -0.2059700860459133
+    },
+    {
+      "max_reference_fraction": 148.78654173907626,
+      "n_actions": 151,
+      "n_nodes": 325166,
+      "n_wealth": 3201,
+      "on_fixed_set": {
+        "max_reference_fraction": 46.409169390414846,
+        "n_nodes": 306863,
+        "policy_max_at": {
+          "dp_fraction": 0.0,
+          "months_remaining": 1.0,
+          "reference_fraction": 46.409169390414846,
+          "wealth_over_goal": 0.05,
+          "z": 0.050141881748359055
+        },
+        "policy_max_error": 46.409169390414846,
+        "policy_max_error_where_representable": 2.805547740262636,
+        "policy_mean_error": 1.3619460181738197,
+        "policy_signed_mean": -1.019795244473468,
+        "policy_signed_mean_where_representable": 0.2854348488354273,
+        "reference_above_grid": {
+          "max_equity_weight": 3.0,
+          "n_nodes": 123175,
+          "share": 0.4014006250346246
+        },
+        "value_max_error": 0.8001872650294725,
+        "value_mean_error": 0.2007408792478008,
+        "value_signed_mean": -0.2007408792478008
+      },
+      "policy_max_at": {
+        "dp_fraction": 0.0,
+        "months_remaining": 0.25,
+        "reference_fraction": 148.78654173907626,
+        "wealth_over_goal": 0.00125,
+        "z": 0.001250885818872225
+      },
+      "policy_max_error": 148.78654173907626,
+      "policy_max_error_where_representable": 2.805547740262636,
+      "policy_mean_error": 1.853628315694139,
+      "policy_signed_mean": -1.5305044575297266,
+      "policy_signed_mean_where_representable": 0.28506937136829946,
+      "reference_above_grid": {
+        "max_equity_weight": 3.0,
+        "n_nodes": 141379,
+        "share": 0.4347902302208718
+      },
+      "seconds_elapsed": 3.225907083018683,
+      "steps_per_month": 4,
+      "value_loss_of_reference_policy": {
+        "max": 0.5333333333333334,
+        "mean": 7.026540162939574e-05,
+        "note": "what the table gives up by playing the paper's fraction instead of its own, in its own problem; clipped to the action grid where the paper asks for more"
+      },
+      "value_max_error": 0.9108409876162992,
+      "value_mean_error": 0.20154894615391902,
+      "value_signed_mean": -0.20154894615391902
+    }
+  ],
+  "mu_independence_check": {
+    "base_premium": 0.006626853478880044,
+    "delta": 0.001656713369720011,
+    "delta_as_fraction_of_premium": 0.25,
+    "n_nodes": 325166,
+    "no_agreement_threshold_declared": true,
+    "paper_assumption_both_ways": true,
+    "passed": true,
+    "perturbations": {
+      "minus": {
+        "fraction_within_two_grid_steps": 0.6692796909886027,
+        "max_absolute_policy_change": 3.0,
+        "max_absolute_value_change": 0.49924470326447296,
+        "mean_absolute_policy_change": 0.057122392870103275,
+        "mean_absolute_value_change": 0.054109856267128886,
+        "mean_log_return_shift": -0.001656713369720011,
+        "mu": 0.007803756590440173,
+        "premium": 0.004970140109160034,
+        "satisfies_paper_assumption": true
+      },
+      "plus": {
+        "fraction_within_two_grid_steps": 0.7051136957738509,
+        "max_absolute_policy_change": 3.0,
+        "max_absolute_value_change": 0.49133559321350445,
+        "mean_absolute_policy_change": 0.04334924315580349,
+        "mean_absolute_value_change": 0.04981057176303642,
+        "mean_log_return_shift": 0.001656713369720011,
+        "mu": 0.011117183329880194,
+        "premium": 0.008283566848600054,
+        "satisfies_paper_assumption": true
+      }
+    },
+    "tolerance": 0.04
+  },
+  "policy_check": {
+    "finest": 148.78654173907626,
+    "grid_steps": 3,
+    "monotone_decrease": false,
+    "passed": false,
+    "sequence": [
+      65.08343520876058,
+      98.81940247885399,
+      148.78654173907626
+    ],
+    "signed_mean_at_finest": -1.5305044575297266,
+    "tolerance": 0.06,
+    "value_loss_at_finest": {
+      "max": 0.5333333333333334,
+      "mean": 7.026540162939574e-05,
+      "note": "what the table gives up by playing the paper's fraction instead of its own, in its own problem; clipped to the action grid where the paper asks for more"
+    }
+  },
+  "restricted_set": {
+    "finest": {
+      "max_reference_fraction": 2.999996038313242,
+      "n_nodes": 181667,
+      "n_wealth": 3201,
+      "policy_max_at": {
+        "dp_fraction": 3.0,
+        "months_remaining": 6.0,
+        "reference_fraction": 1.7317762133281966,
+        "wealth_over_goal": 0.88875,
+        "z": 0.9039894409917781
+      },
+      "policy_max_error": 1.2682237866718034,
+      "policy_max_error_where_representable": 1.2682237866718034,
+      "policy_mean_error": 0.28418337171529423,
+      "policy_p90_error": 0.5407445087517891,
+      "policy_signed_mean": 0.28418337171529423,
+      "policy_signed_mean_where_representable": 0.28418337171529423,
+      "reference_above_grid": {
+        "max_equity_weight": 3.0,
+        "n_nodes": 0,
+        "share": 0.0
+      },
+      "ruin_reached": false,
+      "steps_per_month": 4,
+      "value_max_error": 0.33143559913028153,
+      "value_mean_error": 0.08892408146362303,
+      "value_p90_error": 0.19838248129540992,
+      "value_signed_mean": -0.08892408146362303
+    },
+    "levels": [
+      {
+        "max_reference_fraction": 2.9997949144486995,
+        "n_nodes": 11413,
+        "n_wealth": 801,
+        "policy_max_at": {
+          "dp_fraction": 2.96,
+          "months_remaining": 16.0,
+          "reference_fraction": 1.6100642925732642,
+          "wealth_over_goal": 0.805,
+          "z": 0.8423369742419269
+        },
+        "policy_max_error": 1.3499357074267357,
+        "policy_max_error_where_representable": 1.3499357074267357,
+        "policy_mean_error": 0.33126538005591194,
+        "policy_p90_error": 0.5793585880373209,
+        "policy_signed_mean": 0.331173366266449,
+        "policy_signed_mean_where_representable": 0.331173366266449,
+        "reference_above_grid": {
+          "max_equity_weight": 3.0,
+          "n_nodes": 0,
+          "share": 0.0
+        },
+        "ruin_reached": false,
+        "steps_per_month": 1,
+        "value_max_error": 0.3672788582919915,
+        "value_mean_error": 0.10056392019919948,
+        "value_p90_error": 0.214920027770347,
+        "value_signed_mean": -0.10056392019919948
+      },
+      {
+        "max_reference_fraction": 2.9998673280021086,
+        "n_nodes": 45502,
+        "n_wealth": 1601,
+        "policy_max_at": {
+          "dp_fraction": 3.0,
+          "months_remaining": 8.5,
+          "reference_fraction": 1.7117670366562372,
+          "wealth_over_goal": 0.8625,
+          "z": 0.883526149545551
+        },
+        "policy_max_error": 1.2882329633437628,
+        "policy_max_error_where_representable": 1.2882329633437628,
+        "policy_mean_error": 0.3040392822111628,
+        "policy_p90_error": 0.5547899558590258,
+        "policy_signed_mean": 0.30390907004247486,
+        "policy_signed_mean_where_representable": 0.30390907004247486,
+        "reference_above_grid": {
+          "max_equity_weight": 3.0,
+          "n_nodes": 0,
+          "share": 0.0
+        },
+        "ruin_reached": false,
+        "steps_per_month": 2,
+        "value_max_error": 0.35692401035597543,
+        "value_mean_error": 0.09328110133380899,
+        "value_p90_error": 0.2045653897579608,
+        "value_signed_mean": -0.09328110133380899
+      },
+      {
+        "max_reference_fraction": 2.999996038313242,
+        "n_nodes": 181667,
+        "n_wealth": 3201,
+        "policy_max_at": {
+          "dp_fraction": 3.0,
+          "months_remaining": 6.0,
+          "reference_fraction": 1.7317762133281966,
+          "wealth_over_goal": 0.88875,
+          "z": 0.9039894409917781
+        },
+        "policy_max_error": 1.2682237866718034,
+        "policy_max_error_where_representable": 1.2682237866718034,
+        "policy_mean_error": 0.28418337171529423,
+        "policy_p90_error": 0.5407445087517891,
+        "policy_signed_mean": 0.28418337171529423,
+        "policy_signed_mean_where_representable": 0.28418337171529423,
+        "reference_above_grid": {
+          "max_equity_weight": 3.0,
+          "n_nodes": 0,
+          "share": 0.0
+        },
+        "ruin_reached": false,
+        "steps_per_month": 4,
+        "value_max_error": 0.33143559913028153,
+        "value_mean_error": 0.08892408146362303,
+        "value_p90_error": 0.19838248129540992,
+        "value_signed_mean": -0.08892408146362303
+      }
+    ],
+    "max_reference_fraction": 3.0,
+    "min_months_remaining": 6.0,
+    "rule": "0 < z < 1, at least 6 months remaining and closed-form fraction w* <= 3 (A50 prediction, written 2026-10-11)",
+    "source": "scripts/browne_caps.py, outside the package (A55, D89)"
+  },
+  "strata_at_finest_pair": {
+    "borrowing": {
+      "max_reference_fraction": 148.78654173907626,
+      "n_nodes": 267148,
+      "policy_max_at": {
+        "dp_fraction": 0.0,
+        "months_remaining": 0.25,
+        "reference_fraction": 148.78654173907626,
+        "wealth_over_goal": 0.00125,
+        "z": 0.001250885818872225
+      },
+      "policy_max_error": 148.78654173907626,
+      "policy_max_error_where_representable": 2.061796447590339,
+      "policy_mean_error": 2.225623378209447,
+      "policy_signed_mean": -1.8934188132264873,
+      "policy_signed_mean_where_representable": 0.3517322064813031,
+      "reference_above_grid": {
+        "max_equity_weight": 3.0,
+        "n_nodes": 141379,
+        "share": 0.5292160150927576
+      },
+      "value_max_error": 0.9108409876162992,
+      "value_mean_error": 0.24147668261828148,
+      "value_signed_mean": -0.24147668261828148
+    },
+    "borrowing_share": 0.8215742113259074,
+    "no_borrowing": {
+      "max_reference_fraction": 0.9999948328769985,
+      "n_nodes": 58018,
+      "policy_max_at": {
+        "dp_fraction": 2.96,
+        "months_remaining": 1.0,
+        "reference_fraction": 0.15445225973736387,
+        "wealth_over_goal": 0.995,
+        "z": 0.9978234467923451
+      },
+      "policy_max_error": 2.805547740262636,
+      "policy_max_error_where_representable": 2.805547740262636,
+      "policy_mean_error": 0.14075064047542335,
+      "policy_signed_mean": 0.14056045845631768,
+      "policy_signed_mean_where_representable": 0.14056045845631768,
+      "reference_above_grid": {
+        "max_equity_weight": 3.0,
+        "n_nodes": 0,
+        "share": 0.0
+      },
+      "value_max_error": 0.7621973612625483,
+      "value_mean_error": 0.01769884892579161,
+      "value_signed_mean": -0.01769884892579161
+    }
+  },
+  "value_check": {
+    "finest": 0.9108409876162992,
+    "monotone_decrease": false,
+    "passed": false,
+    "sequence": [
+      0.8472085982252443,
+      0.8830425005204826,
+      0.9108409876162992
+    ],
+    "tolerance": 0.03
+  },
+  "variant": "leverage"
+}
