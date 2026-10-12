@@ -31,17 +31,20 @@
 #      rescaled, and the error against the closed form must fall as the step
 #      does. A single step size proves nothing.
 #
-# WHAT IS DELIBERATELY ABSENT
-#   The closed-form value and policy of Browne (1999) are NOT in this
-#   repository and must not be written from memory. They are transcribed from
-#   the paper by the author, with the equation numbers recorded, and only then
-#   compared against the tables this configuration produces. Everything here
-#   builds the tables; nothing here claims they are right.
+# WHAT IS DELIBERATELY SEPARATE
+#   The closed form lives in browne.py and never in the solver that builds the
+#   tables. It was transcribed from the paper by the author into
+#   docs/browne_reference.md, with the equation numbers recorded, and is
+#   compared against the tables this configuration produces by
+#   run_browne_validation. Everything here builds the tables and declares the
+#   tolerances; nothing here claims they are right.
 # =============================================================================
 
 meta:
   schema_version: 1
   written_on: 2026-10-04
+  # The status text below dates from 2026-10-04 and is kept as written: since
+  # 2026-10-10 the closed form is in browne.py (see the header).
   status: >
     Tables only. The closed-form reference is transcribed from the paper by the
     author and is not part of this file or of the code that reads it.
@@ -85,12 +88,11 @@ parameter_source: config/gbm_params.yml
 assets:
   risky: us_equity
   riskless: ust2y
-  # mu and sigma of the risky column are the annual geometric mean and the
-  # annualised volatility of the frozen matrix, the same two figures the Merton
-  # comparator uses (D69). The riskless drift r is the annual geometric mean of
-  # the riskless column. All three are read from data/returns_matrix.json, so
-  # this file names the columns and never the numbers.
-  source: data/returns_matrix.json
+  # mu, sigma and r are the MONTHLY log-return parameters of
+  # config/gbm_params.yml (mean and variance of us_equity, mean of ust2y), read
+  # by browne_setup; this file names the columns and never the numbers. The
+  # riskless column keeps its drift and loses its variance.
+  source: config/gbm_params.yml
 
 # --- The problem -------------------------------------------------------------
 # Browne's investor has a goal and a deadline and no income: there are no
@@ -191,6 +193,10 @@ checks:
   #    volatility and the rate held, and the policy must stay put while the value
   #    table moves. Exact independence holds in continuous time only, so the
   #    requirement is a fraction of nodes rather than all of them.
+  #    Note (D83): one monthly standard deviation is 6.7 times the premium, so
+  #    the downward shift violates the paper's assumption mu >= r. The result
+  #    is kept exactly as recorded; the leverage variant below shifts by a
+  #    quarter of the premium instead.
   mu_independence:
     delta_in_monthly_sigma: 1.0   # the shift, in units of s
     agreement_grid_steps: 1
@@ -225,10 +231,10 @@ checks:
 # configuration only, so that the shared transition keeps saying what is true of
 # every other configuration.
 #
-# max_equity_weight = 3 is set by the quadrature and not by taste: at nine nodes
-# the worst monthly return the solver sees is about -16 %, so three times
-# levered leaves wealth at roughly half and the floor never binds. Whether it
-# binds is recorded rather than assumed.
+# max_equity_weight = 3 is set by the quadrature and not by taste: at five nodes
+# the worst monthly return the solver sees is about -11 %, so three times
+# levered leaves wealth at roughly two thirds and the floor never binds. Whether
+# it binds is recorded rather than assumed.
 leverage:
   enabled: true
   max_equity_weight: 3.0

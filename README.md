@@ -84,12 +84,14 @@ default when `--seed` is omitted. The DP solver is deterministic and takes no se
 | Block-length sweep: B_L24, 10 / 10 bp | `results/all_B_L24_10bp.csv`, `.json` | `uv run python -m portfolio_manager.evaluate --policies all --test-set B_L24 --cost-bp 10` | test 20260811; bootstrap 1000 |
 | λ sweep: B_L12 agents trained at 10 bp, evaluated at 0 / 10 / 25 bp | `results/all_B_L12_train10bp_eval0bp.csv`, `all_B_L12_10bp.csv`, `all_B_L12_train10bp_eval25bp.csv` | `uv run python -m portfolio_manager.evaluate --policies all --test-set B_L12 --train-cost-bp 10 --cost-bp 0` (and `--cost-bp 25`) | test 20260810; bootstrap 1000 |
 | Agent training, A_gbm, 10 bp (appendix variant) | `results/runs/A_gbm_10bp/seed_<n>/` | `uv run python -m portfolio_manager.train --config A_gbm --seed <n> --total-timesteps 10000000` | 0–4 (see note) |
-| A_gbm, 10 / 10 bp (appendix variant) | `results/all_A_gbm_10bp.csv`, `agent_A_gbm_10bp.csv` | `uv run python -m portfolio_manager.evaluate --policies all --test-set A_gbm --cost-bp 10` | test 20260809; bootstrap 1000 |
+| A_gbm, 10 / 10 bp (appendix variant) | `results/all_A_gbm_10bp.csv` | `uv run python -m portfolio_manager.evaluate --policies all --test-set A_gbm --cost-bp 10` | test 20260809; bootstrap 1000 |
 | Browne validation, both variants (`no_leverage`, `leverage`) | `results/checks/browne_validation.json`, `results/dp/browne_{1,2,4}_per_month.npz` | `uv run python -m portfolio_manager.dp_solver --browne` | — |
 | Figures | `results/figures/*.png` | `uv run python -m portfolio_manager.plots --all --config A_gbm --train-cost-bp 0` and `uv run python -m portfolio_manager.plots --all --config B_L12 --train-cost-bp 10 --table results/all_B_L12_10bp.csv` | — |
 
 Notes:
 
+- `results/agent_A_gbm_10bp.*`: 10 Oct artefact, 1,000 bootstrap resamples, written before the D85
+  fix; superseded by `all_A_gbm_10bp.*` and kept unused.
 - The `train` CLI accepts `--total-timesteps 10000000`. SB3 rounds this up to whole rollouts, so
   each run logs 10,010,624 steps.
 - The side-car of `results/runs/A_gbm_10bp/seed_0/metrics.json` records `"shaping": true`. The

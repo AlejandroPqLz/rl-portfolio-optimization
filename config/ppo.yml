@@ -84,7 +84,9 @@ policy:
 device: cpu                    # MPS is slower for networks this size and is not bit-reproducible
 n_envs: 8
 total_timesteps: 1000000       # default only; the unattended batch sizes this from the measured
-                               # seconds per 100k steps of the smoke run
+                               # seconds per 100k steps of the smoke run; every reported run
+                               # passed --total-timesteps 10000000 (10,010,624 after rounding to
+                               # whole rollouts of n_steps * n_envs = 16,384)
 
 # --- Held-out evaluation during training -------------------------------------
 # A tensor built once per run with validation_seed = 1000 + seed, inside the
@@ -99,10 +101,11 @@ eval_freq: 25000
 n_eval_scenarios: 2000
 
 # --- Reward shaping, contingency only (D74, A40) -----------------------------
-# Off unless `--shaping` is passed. The pre-declared rule: the shaping run is
-# read only if the five unshaped A_gbm seeds show no improvement in
-# P(W_T >= G) over the random policy at their final checkpoint; otherwise it is
-# discarded unread. The discount of the shaping term must equal `ppo.gamma`,
+# Off unless `--shaping` is passed. Rule D77 (supersedes D74/A40): the shaping
+# run is read only if the mean over the five unshaped A_gbm seeds of
+# (final - first held-out P(W_T >= G)) is below +0.02; otherwise it is
+# discarded unread. The random policy value is kept in metrics.json as data,
+# not as the reference. The discount of the shaping term must equal `ppo.gamma`,
 # or the term stops being policy-invariant for the objective PPO optimises;
 # `env.py` reads it from this file for exactly that reason.
 shaping:
