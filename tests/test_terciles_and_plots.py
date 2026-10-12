@@ -355,3 +355,32 @@ def test_the_problem_block_carries_the_effective_cost(problem):
     """The override has to reach the record, not only the environment."""
     base = replace(problem, cost_bp=25.0)
     assert base.cost_rate == pytest.approx(0.0025)
+
+
+# A48 (12 October, outside the freeze by D73): the policy maps query the agent in distribution.
+# ------------------------------------------------------------------------------------------------
+def test_the_policy_map_queries_the_agent_with_the_remaining_contributions(problem):
+    """Before A48 the third component was zero on every node, a state the agent never visits."""
+    from portfolio_manager.plots import observations_on_grid
+
+    grid = np.linspace(0.0, 2.0, 5)
+    t, horizon = 30, problem.horizon_months
+    contribution, goal = problem.monthly_contribution_usd, problem.goal_usd
+    observed = observations_on_grid(grid, t, horizon, contribution=contribution, goal=goal)
+    assert observed.shape == (5, 3) and observed.dtype == np.float32
+    assert np.allclose(observed[:, 0], grid) and np.allclose(observed[:, 1], t / horizon)
+    assert np.allclose(observed[:, 2], contribution * (horizon - t) / goal)
+    last = observations_on_grid(grid, horizon - 1, horizon, contribution=contribution, goal=goal)
+    assert np.allclose(last[:, 2], contribution / goal)
+
+
+def test_the_training_curves_select_the_run_directory_by_training_cost(tmp_path):
+    """D85 applied to the figures: zero and ten basis points are different agents."""
+    from portfolio_manager.plots import plot_training_curves
+
+    zero = read_training_metrics(CONFIG, train_cost_bp=0.0)
+    ten = read_training_metrics(CONFIG, train_cost_bp=10.0)
+    assert zero and ten
+    assert zero["seed_0"]["problem"]["cost_bp"] == 0.0 and ten["seed_0"]["problem"]["cost_bp"] == 10.0
+    path = plot_training_curves(CONFIG, train_cost_bp=0.0, directory=tmp_path)
+    assert path.name == "training_curves_A_gbm_0bp.png" and path.stat().st_size > 0

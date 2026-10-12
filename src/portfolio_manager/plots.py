@@ -22,8 +22,8 @@ dictionary is the only place the two meet.
 
 Command line
 ------------
-    uv run python -m portfolio_manager.plots --all
-    uv run python -m portfolio_manager.plots --policy-maps --config A_gbm
+    uv run python -m portfolio_manager.plots --all --config A_gbm --train-cost-bp 0
+    uv run python -m portfolio_manager.plots --wealth --config B_L12 --train-cost-bp 10
 """
 
 # Imports
@@ -56,6 +56,19 @@ VARIANCE_RATIO_YEARS = (1, 2, 3, 5, 7, 10)
 MONTHS_PER_YEAR = 12
 FIGURE_DPI = 150
 
+POLICY_MAP_WEALTH_LIMIT = 1.1
+"""Upper edge of the wealth axis of the policy maps, in goal units (A48)."""
+
+OBSERVED_BOUNDARY = (0.2, 0.8)
+"""Intercept and slope of the line ``W/G = 0.2 + 0.8 t/T`` drawn on the policy maps.
+
+An observation, not a parameter of the problem: it is where the tabulated optimum of ``A_gbm`` was
+read to switch from equity to the short bond on 10 October (thesis section 4.4). It is drawn so the
+reader can check that reading against the map, and it enters no computation."""
+
+ALL_SEEDS = "all"
+"""Value of ``--seed`` that draws the mean map over every trained seed plus one map per seed."""
+
 LABELS: dict[str, str] = {
     # Axes
     "relative_wealth": "Riqueza relativa $W_t/G$",
@@ -67,6 +80,7 @@ LABELS: dict[str, str] = {
     "variance_ratio": "Ratio de varianza $VR(k)$",
     "horizon_years": "Horizonte $k$ (años)",
     "equity_weight": "Peso en renta variable",
+    "equity_weight_difference": "Diferencia de peso en renta variable (agente $-$ tabla)",
     "policy": "Estrategia",
     # Series
     "dp_table": "Óptimo tabulado",
@@ -76,6 +90,11 @@ LABELS: dict[str, str] = {
     "independence": "Independencia",
     "goal": "Meta",
     "degenerate": "Óptimo degenerado",
+    "contribution_path": "Senda de aportaciones $(W_0 + c\\,t)/G$",
+    "observed_boundary": "Frontera observada $W/G = 0{,}2 + 0{,}8\\,t/T$",
+    "first_evaluation": "Primera evaluación",
+    "last_evaluation": "Última evaluación",
+    "seed_mean": "media de {n} semillas",
     # Titles
     "policy_map_dp": "Mapa de política: óptimo tabulado",
     "policy_map_agent": "Mapa de política: agente",
@@ -163,6 +182,66 @@ def equity_weight_map(policy: np.ndarray, column: int = 0) -> np.ndarray:
     return np.asarray(policy, dtype=np.float64)[:, :, column]
 
 
+def observations_on_grid(grid: np.ndarray, t: int, horizon: int, *, contribution: float, goal: float) -> np.ndarray:
+    """The observation ``(W/G, t/T, C_t/G)`` at every wealth node of one month.
+
+    The third component is the remaining contributions ``c (T - t) / G``, exactly as
+    ``env._observation`` builds it. Querying the agent with zero remaining contributions, as the
+    previous version of this module did, asked it about states it never visits before the last
+    month: every map drawn that way was an out-of-distribution query, not the learned policy.
+
+    Args:
+        grid: ``(n_wealth,)`` wealth nodes in goal units.
+        t: Month, ``0 <= t < horizon``.
+        horizon: ``T``.
+        contribution: ``c`` in USD.
+        goal: ``G`` in USD.
+
+    Returns:
+        ``(n_wealth, 3)`` ``float32`` observations.
+    """
+    remaining = contribution * (horizon - t) / goal
+    return np.stack([grid, np.full(grid.size, t / horizon), np.full(grid.size, remaining)], axis=-1).astype(np.float32)
+
+
+def learned_equity_map(
+    archive: Path, grid: np.ndarray, horizon: int, *, contribution: float, goal: float
+) -> np.ndarray:
+    """The agent's equity weight at every node of the solver grid, one saved policy."""
+    from portfolio_manager.evaluate import load_trained_policy
+
+    policy = load_trained_policy(archive)
+    learned = np.empty((grid.size, horizon), dtype=np.float64)
+    for t in range(horizon):
+        observations = observations_on_grid(grid, int(t), horizon, contribution=contribution, goal=goal)
+        learned[:, t] = policy(observations, int(t))[:, 0]
+    return learned
+
+
+def _draw_reference_lines(
+    axis: plt.Axes, *, contribution: float, horizon: int, goal: float, initial_wealth: float
+) -> None:
+    """The contribution path ``(W_0 + c t) / G``, derived from the problem, and the observed boundary."""
+    fraction = np.linspace(0.0, 1.0, 2)
+    axis.plot(
+        fraction,
+        (initial_wealth + contribution * horizon * fraction) / goal,
+        color="#b03030",
+        linestyle="--",
+        linewidth=1.0,
+        label=LABELS["contribution_path"],
+    )
+    intercept, slope = OBSERVED_BOUNDARY
+    axis.plot(
+        fraction,
+        intercept + slope * fraction,
+        color="black",
+        linestyle=":",
+        linewidth=1.0,
+        label=LABELS["observed_boundary"],
+    )
+
+
 def plot_policy_maps(
     configuration: str,
     *,
@@ -173,6 +252,10 @@ def plot_policy_maps(
     runs: Path = RUNS_DIRECTORY,
 ) -> Path:
     """The tabulated optimum against the agent, over the wealth and time-remaining plane.
+
+    ``seed`` is one run sub-directory, or ``ALL_SEEDS`` to draw the mean map over every seed whose
+    ``policy.zip`` exists; the per-seed maps of the appendix are written by calling this function
+    once per seed.
 
     ``train_cost_bp`` names the cost the plotted agent was trained under and is required for the
     same reason it is in ``evaluate.py``: reading it from ``config/problem.yml`` would quietly
@@ -186,7 +269,7 @@ def plot_policy_maps(
     hypothesis has nothing to say there.
 
     The agent panels are drawn only when ``<runs>/<configuration>_<bp>bp/<seed>/policy.zip``
-    exists; the agent is queried with zero remaining contributions on every node.
+    exists; the agent is queried with the remaining contributions of each month, as in training.
 
     Args:
         configuration: Name of the frozen recipe; selects ``<dp_directory>/<configuration>.npz``.
@@ -206,31 +289,27 @@ def plot_policy_maps(
     horizon = tabulated.shape[1]
     extent = (0.0, 1.0, float(grid[0]), float(grid[-1]))
 
+    from portfolio_manager.env import load_problem
     from portfolio_manager.evaluate import agent_run_directory
 
-    archive = agent_run_directory(configuration, train_cost_bp, runs) / seed / "policy.zip"
+    problem = load_problem()
+    contribution, goal = problem.monthly_contribution_usd, problem.goal_usd
+    root = agent_run_directory(configuration, train_cost_bp, runs)
+    if seed == ALL_SEEDS:
+        archives = sorted(root.glob("seed_*/policy.zip"), key=lambda path: int(path.parent.name.split("_")[1]))
+    else:
+        archives = [root / seed / "policy.zip"] if (root / seed / "policy.zip").is_file() else []
     learned = None
-    if archive.is_file():
-        from portfolio_manager.evaluate import load_trained_policy
-
-        policy = load_trained_policy(archive)
-        months = np.arange(horizon)
-        learned = np.empty_like(tabulated)
-        for t in months:
-            observations = np.stack(
-                [grid, np.full(grid.size, t / horizon), np.zeros(grid.size)], axis=-1
-            ).astype(np.float32)
-            learned[:, t] = policy(observations, int(t))[:, 0]
+    if archives:
+        learned = np.mean(
+            [learned_equity_map(a, grid, horizon, contribution=contribution, goal=goal) for a in archives], axis=0
+        )
 
     panels = 3 if learned is not None else 1
-    figure, axes = plt.subplots(
-        1, panels, figsize=(5.6 * panels, 4.4), squeeze=False, layout="constrained"
-    )
+    figure, axes = plt.subplots(1, panels, figsize=(5.6 * panels, 4.4), squeeze=False, layout="constrained")
     masked = np.ma.masked_where(degenerate, tabulated)
 
-    image = axes[0][0].imshow(
-        masked, origin="lower", aspect="auto", extent=extent, vmin=0.0, vmax=1.0, cmap="viridis"
-    )
+    image = axes[0][0].imshow(masked, origin="lower", aspect="auto", extent=extent, vmin=0.0, vmax=1.0, cmap="viridis")
     axes[0][0].set_title(LABELS["policy_map_dp"])
     figure.colorbar(image, ax=axes[0][0], label=LABELS["equity_weight"])
 
@@ -244,7 +323,8 @@ def plot_policy_maps(
             vmax=1.0,
             cmap="viridis",
         )
-        axes[0][1].set_title(f"{LABELS['policy_map_agent']} ({seed})")
+        who = LABELS["seed_mean"].format(n=len(archives)) if seed == ALL_SEEDS else seed
+        axes[0][1].set_title(f"{LABELS['policy_map_agent']} ({who})")
         figure.colorbar(second, ax=axes[0][1], label=LABELS["equity_weight"])
 
         difference = np.ma.masked_where(degenerate, learned - tabulated)
@@ -252,33 +332,44 @@ def plot_policy_maps(
             difference, origin="lower", aspect="auto", extent=extent, vmin=-1.0, vmax=1.0, cmap="coolwarm"
         )
         axes[0][2].set_title(LABELS["policy_map_difference"])
-        figure.colorbar(third, ax=axes[0][2], label=LABELS["equity_weight"])
+        figure.colorbar(third, ax=axes[0][2], label=LABELS["equity_weight_difference"])
 
     for axis in axes[0]:
+        _draw_reference_lines(
+            axis, contribution=contribution, horizon=horizon, goal=goal, initial_wealth=problem.initial_wealth_usd
+        )
         axis.set_xlabel(LABELS["time_elapsed"])
         axis.set_ylabel(LABELS["relative_wealth"])
-        axis.set_ylim(0.0, 2.0)
+        axis.set_ylim(0.0, POLICY_MAP_WEALTH_LIMIT)
+    axes[0][0].legend(fontsize=7, loc="upper left")
     figure.suptitle(f"{configuration} · {LABELS['excluded_note']}", fontsize=9)
-    return _save(figure, directory / f"policy_maps_{configuration}.png")
+    suffix = "" if seed == ALL_SEEDS else f"_{seed}"
+    return _save(figure, directory / f"policy_maps_{configuration}{suffix}.png")
 
 
 # ======================================================================================
 # Training curves
 # ======================================================================================
 def plot_training_curves(
-    configuration: str, *, directory: Path = FIGURES_DIRECTORY, runs: Path = RUNS_DIRECTORY
+    configuration: str,
+    *,
+    train_cost_bp: float | None = None,
+    directory: Path = FIGURES_DIRECTORY,
+    runs: Path = RUNS_DIRECTORY,
 ) -> Path:
     """Held-out success probability against training steps, one line per seed.
 
     Five seeds are plotted individually rather than averaged. The spread between them is part of
     the result: a mean curve would hide whether the method is reliable or whether one seed carried
-    the configuration.
+    the configuration. The first and the last evaluation of each seed are marked, because the
+    reported number is the last point and not the best one (section 4.3.9).
 
-    The run directory is the one of the base-case cost in ``config/problem.yml``: this function
-    takes no training cost.
+    ``train_cost_bp`` selects the run directory for the same reason it does in ``evaluate.py``
+    (D85); the base case of ``config/problem.yml`` is used when it is omitted.
 
     Args:
         configuration: Name of the frozen recipe.
+        train_cost_bp: Cost the plotted agents were trained under, in basis points.
         directory: Where the figure is written.
         runs: Root of the training runs.
 
@@ -288,36 +379,37 @@ def plot_training_curves(
     Raises:
         FileNotFoundError: If no seed has a ``metrics.json``.
     """
-    metrics = read_training_metrics(configuration, runs)
+    metrics = read_training_metrics(configuration, runs, train_cost_bp=train_cost_bp)
     if not metrics:
-        raise FileNotFoundError(f"no runs under {runs / configuration}")
+        raise FileNotFoundError(f"no runs under {runs / configuration} at {train_cost_bp} bp")
 
     figure, axis = plt.subplots(figsize=(7.0, 4.4))
     for name, document in metrics.items():
         history = document["held_out"]["history"]
-        axis.plot(
-            [point["timesteps"] for point in history],
-            [point["probability_of_reaching_goal"] for point in history],
-            linewidth=1.1,
-            label=name.replace("seed_", "semilla "),
-        )
+        steps = [point["timesteps"] for point in history]
+        values = [point["probability_of_reaching_goal"] for point in history]
+        (line,) = axis.plot(steps, values, linewidth=1.1, label=name.replace("seed_", "semilla "))
+        axis.plot(steps[0], values[0], marker="o", markersize=5, color=line.get_color(), linestyle="none")
+        axis.plot(steps[-1], values[-1], marker="s", markersize=5, color=line.get_color(), linestyle="none")
+    axis.plot([], [], marker="o", color="grey", linestyle="none", label=LABELS["first_evaluation"])
+    axis.plot([], [], marker="s", color="grey", linestyle="none", label=LABELS["last_evaluation"])
     random_value = float(next(iter(metrics.values()))["random_policy_probability"])
     axis.axhline(random_value, color="black", linestyle="--", linewidth=1.0, label=LABELS["random_policy"])
 
     axis.set_xlabel(LABELS["timesteps"])
     axis.set_ylabel(LABELS["probability_of_reaching_goal"])
     axis.set_title(f"{LABELS['training_curves']} · {configuration}")
-    axis.legend(fontsize=8, ncol=2)
+    # Below the axes: inside the frame the legend hides either the random-policy line or the curves.
+    axis.legend(fontsize=8, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.16))
     axis.grid(alpha=0.3)
-    return _save(figure, directory / f"training_curves_{configuration}.png")
+    suffix = "" if train_cost_bp is None else f"_{train_cost_bp:g}bp"
+    return _save(figure, directory / f"training_curves_{configuration}{suffix}.png")
 
 
 # ======================================================================================
 # Terminal wealth
 # ======================================================================================
-def plot_terminal_wealth(
-    table_path: Path, *, goal: float | None = None, directory: Path = FIGURES_DIRECTORY
-) -> Path:
+def plot_terminal_wealth(table_path: Path, *, goal: float | None = None, directory: Path = FIGURES_DIRECTORY) -> Path:
     """The distribution of terminal wealth per policy, from the quantiles already recorded.
 
     Drawn from the five quantiles the evaluation wrote and not from the raw outcomes, which is the
@@ -334,9 +426,7 @@ def plot_terminal_wealth(
     """
     table = read_table(table_path)
     names = list(table)
-    quantiles = np.array(
-        [[table[name][f"terminal_wealth_p{q}_usd"] for q in (5, 25, 50, 75, 95)] for name in names]
-    )
+    quantiles = np.array([[table[name][f"terminal_wealth_p{q}_usd"] for q in (5, 25, 50, 75, 95)] for name in names])
 
     figure, axis = plt.subplots(figsize=(1.35 * len(names) + 3.0, 4.6))
     positions = np.arange(len(names))
@@ -498,7 +588,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--wealth", action="store_true", help="terminal wealth per policy, from the quantiles")
     parser.add_argument("--variance-ratio", action="store_true", help="the curve of the historical matrix")
     parser.add_argument("--config", default="A_gbm", help="configuration whose maps and curves are drawn")
-    parser.add_argument("--seed", default="seed_0", help="seed whose policy map is drawn")
+    parser.add_argument(
+        "--seed",
+        default=ALL_SEEDS,
+        help=f"seed whose policy map is drawn; '{ALL_SEEDS}' draws the mean and one map per seed",
+    )
     parser.add_argument(
         "--train-cost-bp",
         type=float,
@@ -520,27 +614,36 @@ def main(argv: list[str] | None = None) -> int:
             if (DP_DIRECTORY / f"{args.config}.npz").is_file():
                 from portfolio_manager.env import load_problem as _load_problem
 
-                train_cost = (
-                    _load_problem().cost_bp if args.train_cost_bp is None else args.train_cost_bp
-                )
-                written.append(
-                    plot_policy_maps(args.config, seed=args.seed, train_cost_bp=train_cost)
-                )
+                train_cost = _load_problem().cost_bp if args.train_cost_bp is None else args.train_cost_bp
+                written.append(plot_policy_maps(args.config, seed=args.seed, train_cost_bp=train_cost))
+                if args.seed == ALL_SEEDS:
+                    from portfolio_manager.evaluate import agent_run_directory
+
+                    for archive in sorted(agent_run_directory(args.config, train_cost).glob("seed_*/policy.zip")):
+                        written.append(
+                            plot_policy_maps(args.config, seed=archive.parent.name, train_cost_bp=train_cost)
+                        )
             else:
                 skipped.append(f"policy maps: no table at {DP_DIRECTORY / f'{args.config}.npz'}")
         if args.all or args.training:
-            if read_training_metrics(args.config):
-                written.append(plot_training_curves(args.config))
+            if read_training_metrics(args.config, train_cost_bp=args.train_cost_bp):
+                written.append(plot_training_curves(args.config, train_cost_bp=args.train_cost_bp))
             else:
                 skipped.append(f"training curves: no runs under {RUNS_DIRECTORY / args.config}")
         if args.all or args.wealth:
-            table = args.table or next(iter(sorted(RESULTS_DIRECTORY.glob("*.csv"))), None)
+            table = args.table
+            if table is None:
+                from portfolio_manager.env import load_problem as _problem
+
+                cost = _problem().cost_bp if args.train_cost_bp is None else args.train_cost_bp
+                candidate = RESULTS_DIRECTORY / f"all_{args.config}_{cost:g}bp.csv"
+                table = candidate if candidate.is_file() else None
             if table is not None:
                 from portfolio_manager.env import load_problem
 
                 written.append(plot_terminal_wealth(table, goal=load_problem().goal_usd))
             else:
-                skipped.append("terminal wealth: no results table")
+                skipped.append(f"terminal wealth: no all_{args.config}_<bp>bp.csv; pass --table")
         if args.all or args.variance_ratio:
             path, _ = plot_variance_ratio()
             written.append(path)
